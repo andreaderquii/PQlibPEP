@@ -38,3 +38,5 @@ pub fn prf_modulus_chain() -> Vec<u64> {
         .map(|j| Q_BASE.pow((j + 1) as u32))
         .collect()
 }
+
+pub const PLAINTEXT_MODULUS: u64 = 17;

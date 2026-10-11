@@ -355,27 +355,47 @@ fn test_rlwr_prf_base() {
 
     let mut rng = StdRng::seed_from_u64(42);
 
-    let base = RlwrPrfBase::sample(&mut rng, n, q);
+    let base = RlwrPrfBase::sample(
+        &mut rng,
+        n,
+        q,
+        2,
+    );
 
-    assert_eq!(base.s0.modulus(), q);
-    assert_eq!(base.s1.modulus(), q);
+    assert_eq!(base.s0.len(), 2);
+    assert_eq!(base.s1.len(), 2);
 
-    assert_eq!(base.s0.degree_bound(), n);
-    assert_eq!(base.s1.degree_bound(), n);
+    for i in 0..2 {
+        assert_eq!(base.s0[i].modulus(), q);
+        assert_eq!(base.s1[i].modulus(), q);
 
-    assert_ne!(
-        base.s0.to_coeffs_vec(),
-        base.s1.to_coeffs_vec()
+        assert_eq!(base.s0[i].degree_bound(), n);
+        assert_eq!(base.s1[i].degree_bound(), n);
+
+        assert_ne!(
+            base.s0[i].to_coeffs_vec(),
+            base.s1[i].to_coeffs_vec()
+        );
+    }
+
+    assert_eq!(
+        base.evaluate_at(0, 0).to_coeffs_vec(),
+        base.s0[0].to_coeffs_vec()
     );
 
     assert_eq!(
-        base.evaluate(0).to_coeffs_vec(),
-        base.s0.to_coeffs_vec()
+        base.evaluate_at(0, 1).to_coeffs_vec(),
+        base.s1[0].to_coeffs_vec()
     );
 
     assert_eq!(
-        base.evaluate(1).to_coeffs_vec(),
-        base.s1.to_coeffs_vec()
+        base.evaluate_at(1, 0).to_coeffs_vec(),
+        base.s0[1].to_coeffs_vec()
+    );
+
+    assert_eq!(
+        base.evaluate_at(1, 1).to_coeffs_vec(),
+        base.s1[1].to_coeffs_vec()
     );
 }
 
@@ -392,7 +412,12 @@ fn test_rlwr_prf_two_bits() {
 
     let mut rng = StdRng::seed_from_u64(42);
 
-    let base = RlwrPrfBase::sample(&mut rng, n, q1);
+    let base = RlwrPrfBase::sample(
+    &mut rng,
+    n,
+    q1,
+    2,
+    );
 
     let prf = RlwrPrf::new(base, vec![q0, q1]);
 
@@ -416,7 +441,7 @@ fn test_rlwr_prf_four_bits() {
 
     let mut rng = StdRng::seed_from_u64(42);
 
-    let base = RlwrPrfBase::sample(&mut rng, n, q2);
+    let base = RlwrPrfBase::sample(&mut rng, n, q2, 4);
 
     let prf = RlwrPrf::new(base, vec![q0, q1, q2]);
 
@@ -441,7 +466,7 @@ fn test_rlwr_prf_eight_bits() {
 
     let mut rng = StdRng::seed_from_u64(42);
 
-    let base = RlwrPrfBase::sample(&mut rng, n, q3);
+    let base = RlwrPrfBase::sample(&mut rng, n, q3, 8);
 
     let prf = RlwrPrf::new(
         base,
@@ -467,7 +492,13 @@ fn test_rlwr_prf_invalid_input_length() {
 
     let mut rng = StdRng::seed_from_u64(42);
 
-    let base = RlwrPrfBase::sample(&mut rng, n, q1);
+    let base = RlwrPrfBase::sample(
+    &mut rng,
+    n,
+    q1,
+    2,
+    );
+
     let prf = RlwrPrf::new(base, vec![q0, q1]);
 
     prf.evaluate(&[0, 1, 1]);
@@ -486,7 +517,7 @@ fn test_rlwr_prf_empty_input() {
 
     let mut rng = StdRng::seed_from_u64(42);
 
-    let base = RlwrPrfBase::sample(&mut rng, n, q1);
+    let base = RlwrPrfBase::sample(&mut rng, n, q1, 2);
     let prf = RlwrPrf::new(base, vec![q0, q1]);
 
     prf.evaluate(&[]);
@@ -505,11 +536,11 @@ fn test_rlwr_prf_insufficient_modulus_chain() {
 
     let mut rng = StdRng::seed_from_u64(42);
 
-    let base = RlwrPrfBase::sample(&mut rng, n, q1);
+    let base = RlwrPrfBase::sample(&mut rng, n, q1, 2);
     let prf = RlwrPrf::new(base, vec![q0, q1]);
 
     // 8 bit => depth 3, ma abbiamo solo q0, q1.
-    prf.evaluate(&[1, 0, 1, 1, 0, 0, 1, 0]);
+   prf.evaluate(&[1, 0, 1, 1, 0, 0, 1, 0]);
 }
 
 #[test]
@@ -527,7 +558,7 @@ fn test_rlwr_prf_deterministic() {
 
     let mut rng = StdRng::seed_from_u64(42);
 
-    let base = RlwrPrfBase::sample(&mut rng, n, q3);
+    let base = RlwrPrfBase::sample(&mut rng, n, q3, 8);
 
     let prf = RlwrPrf::new(
         base,
@@ -557,7 +588,7 @@ fn test_rlwr_prf_different_inputs() {
 
     let mut rng = StdRng::seed_from_u64(42);
 
-    let base = RlwrPrfBase::sample(&mut rng, n, q3);
+    let base = RlwrPrfBase::sample(&mut rng, n, q3, 8);
 
     let prf = RlwrPrf::new(
         base,
@@ -591,6 +622,57 @@ fn test_bytes_to_bits() {
     );
 }
 
+#[test]
+fn test_prf_input_position_sensitivity() {
+    use pq_libpep::core::rlwr_prf::{
+        RlwrPrf,
+        RlwrPrfBase,
+    };
+    use rand::rngs::StdRng;
+    use rand::SeedableRng;
 
+    let n = 4;
 
+    let q0 = 17;
+    let q1 = 289;
+    let q2 = 4_913;
+    let q3 = 83_521;
 
+    let mut rng = StdRng::seed_from_u64(42);
+
+    let base = RlwrPrfBase::sample(
+        &mut rng,
+        n,
+        q3,
+        8,
+    );
+
+    let prf = RlwrPrf::new(
+        base,
+        vec![q0, q1, q2, q3],
+    );
+
+    let p0 = prf.evaluate(&[
+        0, 0, 0, 0, 0, 0, 0, 0
+    ]);
+
+    let p1 = prf.evaluate(&[
+        1, 0, 0, 0, 0, 0, 0, 0
+    ]);
+
+    let p2 = prf.evaluate(&[
+        0, 1, 0, 0, 0, 0, 0, 0
+    ]);
+
+    let p3 = prf.evaluate(&[
+        0, 0, 0, 0, 0, 0, 0, 1
+    ]);
+
+    assert_ne!(p0, p1);
+    assert_ne!(p0, p2);
+    assert_ne!(p0, p3);
+
+    assert_ne!(p1, p2);
+    assert_ne!(p1, p3);
+    assert_ne!(p2, p3);
+}

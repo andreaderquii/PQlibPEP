@@ -57,7 +57,7 @@ fn test_ark_poly_with_ntt_multiplication() {
 
     // Normalizzazione per N^-1
     let n_inv = {
-        let mut base = n as u64;
+        let base = n as u64;
         let mut exp = q - 2;
         let mut res = 1u128;
         let mut b = base as u128;

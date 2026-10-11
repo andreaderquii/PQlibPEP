@@ -1,3 +1,59 @@
+
+use concrete_ntt::prime64::Plan;
+// ============================================================================
+// 2. Concrete-NTT Wrapper (High-Performance Library Integration)
+// ============================================================================
+
+/// High-performance NTT engine backed by Zama's `concrete-ntt`.
+pub struct ConcreteNttContext {
+    pub n: usize,
+    pub q: u64,
+    plan: Plan,
+}
+
+impl ConcreteNttContext {
+    /// Creates a new `ConcreteNttContext`.
+    /// Panics if `q` is not a prime satisfying `q ≡ 1 mod 2n`.
+    pub fn new(n: usize, q: u64) -> Self {
+        let plan = Plan::try_new(n, q).unwrap_or_else(|| {
+            panic!(
+                "concrete-ntt failed to initialize Plan for n={}, q={}",
+                n, q
+            )
+        });
+
+        Self { n, q, plan }
+    }
+
+    /// Executes forward NTT in-place using `concrete-ntt`.
+    pub fn forward(&self, a: &mut [u64]) {
+        assert_eq!(a.len(), self.n);
+        self.plan.fwd(a);
+    }
+
+    /// Executes inverse NTT in-place using `concrete-ntt`.
+    /// Note: `concrete-ntt::Plan::inv` does not apply the `N^-1`
+    /// normalization. The result is therefore `N * a` modulo `q`
+    /// after a `fwd` followed by `inv`.
+    pub fn inverse(&self, a: &mut [u64]) {
+        assert_eq!(a.len(), self.n);
+        self.plan.inv(a);
+    }
+}
+
+
+
+
+
+
+
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Custom NTT Implementation (Reference Implementation)
+
+
+
 // src/lib/algebra/ntt.rs
 // NTT fundamental to convert polynomials in R_q = Z_q[X] / (X^n + 1) to their NTT representation and back.
 // Very useful for polynomial multiplication that becomes point-wise in the NTT domain,
@@ -7,10 +63,6 @@
 // b(X) ──NTT──> B
 // A * B = C
 // C ──INTT──> c(X) = a(X) * b(X) mod (X^n + 1, q)
-
-// ============================================================================
-// 1. Custom NTT Implementation (Reference Implementation)
-// ============================================================================
 
 /// Handles the context and precomputed tables for the custom Number Theoretic Transform (NTT)
 /// into R_q = Z_q[X] / (X^n + 1).
@@ -44,8 +96,7 @@ impl CustomNttContext {
     /// Initializes the NTT context and precomputes root tables (twiddle factors).
     ///
     /// # Requirements
-    /// - `n` must be a power of 2.
-    /// - `q` must be prime and satisfy `q ≡ 1 mod 2n`.
+    /// n` must be a power of 2. q must be prime and satisfy q ≡ 1 mod 2n.
     pub fn new(n: usize, q: u64) -> Self {
         let psi = Self::find_primitive_root(n, q);
         let psi_inv = mod_inverse(psi, q);
@@ -72,7 +123,7 @@ impl CustomNttContext {
         }
     }
 
-    /// Executes the forward NTT in-place using the Cooley-Tukey butterfly algorithm.
+    /// Executes the forward NTT in-place
     /// Transforms the vector from coefficient representation to NTT domain.
     pub fn forward(&self, a: &mut [u64]) {
         assert_eq!(a.len(), self.n);
@@ -166,46 +217,3 @@ pub fn mod_inverse(a: u64, q: u64) -> u64 {
     mod_pow(a, q - 2, q)
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-use concrete_ntt::prime64::Plan;
-// ============================================================================
-// 2. Concrete-NTT Wrapper (High-Performance Library Integration)
-// ============================================================================
-
-/// High-performance NTT engine backed by Zama's `concrete-ntt`.
-pub struct ConcreteNttContext {
-    pub n: usize,
-    pub q: u64,
-    plan: Plan,
-}
-
-impl ConcreteNttContext {
-    /// Creates a new `ConcreteNttContext`.
-    /// Panics if `q` is not a prime satisfying `q ≡ 1 mod 2n`.
-    pub fn new(n: usize, q: u64) -> Self {
-        let plan = Plan::try_new(n, q).unwrap_or_else(|| {
-            panic!(
-                "concrete-ntt failed to initialize Plan for n={}, q={}",
-                n, q
-            )
-        });
-
-        Self { n, q, plan }
-    }
-
-    /// Executes forward NTT in-place using `concrete-ntt`.
-    pub fn forward(&self, a: &mut [u64]) {
-        assert_eq!(a.len(), self.n);
-        self.plan.fwd(a);
-    }
-
-    /// Executes inverse NTT in-place using `concrete-ntt`.
-    /// Note: `concrete-ntt::Plan::inv` does not apply the `N^-1`
-    /// normalization. The result is therefore `N * a` modulo `q`
-    /// after a `fwd` followed by `inv`.
-    pub fn inverse(&self, a: &mut [u64]) {
-        assert_eq!(a.len(), self.n);
-        self.plan.inv(a);
-    }
-}

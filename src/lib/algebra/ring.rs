@@ -211,6 +211,15 @@ impl PolyRq {
         let n = self.degree;
         let q = self.modulus;
 
+        // concrete-ntt does not support every tiny transform size used in
+        // correctness tests (for example N=8), even when q is prime and
+        // q == 1 (mod 2N). Use the exact schoolbook negacyclic product for
+        // small rings; retain the optimized NTT for the project's normal
+        // N=256-and-up parameter sets.
+        if n < 256 {
+            return self.mul_negacyclic(other);
+        }
+
         let mut a = self.coeffs[..n].to_vec();
         let mut b = other.coeffs[..n].to_vec();
 
@@ -243,6 +252,27 @@ impl PolyRq {
     pub fn degree_bound(&self) -> usize {
         self.degree
     }
+
+    pub fn neg(&self) -> PolyRq {
+    let q = self.modulus();
+
+    let coeffs: Vec<u64> = self.coefficients()
+        .iter()
+        .map(|&x| {
+            if x == 0 {
+                0
+            } else {
+                q - x
+            }
+        })
+        .collect();
+
+    PolyRq::from_coeffs(
+        &coeffs,
+        self.degree_bound(),
+        q,
+    )
+}
 }
 
 /// Creates the ring

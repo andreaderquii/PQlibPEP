@@ -25,6 +25,7 @@ fn test_prf() -> RlwrPrf {
         &mut rng,
         RING_DIMENSION,
         highest_modulus,
+        256
     );
 
     RlwrPrf::new(

@@ -1,6 +1,6 @@
 use pq_libpep::algebra::ntt::{ConcreteNttContext, CustomNttContext};
 
-fn mod_pow(mut base: u64, mut exp: u64, modulus: u64) -> u64 {
+fn mod_pow(base: u64, mut exp: u64, modulus: u64) -> u64 {
     let mut result = 1u128;
     let mut b = base as u128;
     let m = modulus as u128;
