@@ -1,0 +1,47 @@
+# Run from project root: docker compose -f lab/compose.yaml ...
+services:
+  setup:
+    profiles: [setup]
+    build: {context: .., dockerfile: lab/Dockerfile}
+    image: pqpep-role-lab:local
+    entrypoint: ["/bin/sh", "-ec"]
+    command: ["pqpep-lab provision /material $${PQPEP_PROFILE:-paper} && /app/make-certs.sh /material"]
+    environment:
+      PQPEP_PROFILE: ${PQPEP_PROFILE:-paper}
+    volumes: ["./material:/material"]
+    network_mode: none
+  transcryptor:
+    image: pqpep-role-lab:local
+    command: [transcryptor, /role, "0.0.0.0:7001"]
+    volumes: ["./material/transcryptor:/role:ro"]
+    networks:
+      pep: {ipv4_address: 172.29.88.20}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+  recipient:
+    image: pqpep-role-lab:local
+    command: [recipient, /role, "0.0.0.0:7002"]
+    volumes: ["./material/b:/role:ro"]
+    networks:
+      pep: {ipv4_address: 172.29.88.30}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+  source:
+    profiles: [send]
+    image: pqpep-role-lab:local
+    command: [source, /role, "transcryptor:7001", "recipient:7002"]
+    environment:
+      PQPEP_LAB_ID: ${PQPEP_LAB_ID:-patient-demo-001}
+    volumes: ["./material/a:/role:ro"]
+    networks:
+      pep: {ipv4_address: 172.29.88.10}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+networks:
+  pep:
+    internal: true
+    ipam:
+      config: [{subnet: 172.29.88.0/24}]

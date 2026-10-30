@@ -15,10 +15,7 @@ impl ObliviousPrf {
         Self
     }
 
-    pub fn evaluate(
-        &self,
-        _input: &EncryptedInput,
-    ) -> EncryptedPrfOutput {
+    pub fn evaluate(&self, _input: &EncryptedInput) -> EncryptedPrfOutput {
         todo!("BPR12 blind evaluation not implemented yet")
     }
 }

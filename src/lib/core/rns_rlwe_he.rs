@@ -3,15 +3,13 @@ use rand::RngCore;
 
 use crate::algebra::ring::PolyRq;
 use crate::core::rns::{RnsModulusChain, RnsPoly};
+use crate::parameters::rns_rlwe_he_prototype as parameter_profile;
 
 use crate::core::rlwe_rns::{
-    sample_small_rns_poly,
-    sample_uniform_rns_poly,
-    RnsCiphertext,
-    RnsSecretKey,
+    sample_small_rns_poly, sample_uniform_rns_poly, RnsCiphertext, RnsSecretKey,
 };
 
-const PLAINTEXT_MODULUS: u64 = 17;
+const PLAINTEXT_MODULUS: u64 = parameter_profile::PLAINTEXT_MODULUS;
 
 // Three-component ciphertext produced by ciphertext x ciphertext
 // multiplication:
@@ -45,6 +43,23 @@ pub struct RnsRelinearizationKey {
     pub base_bits: usize,
 }
 
+pub struct RnsKeySwitchKeyEntry {
+    pub k0: RnsPoly,
+    pub k1: RnsPoly,
+}
+
+/// Key-switching key for X -> X^exponent.
+///
+/// Each entry satisfies:
+/// k1 - k0*s = B^i * sigma(s) + 17*e (mod Q).
+pub struct RnsAutomorphismKey {
+    pub exponent: usize,
+    pub entries: Vec<RnsKeySwitchKeyEntry>,
+    pub base_bits: usize,
+    pub moduli: Vec<u64>,
+    pub degree: usize,
+}
+
 // RNS RLWE homomorphic evaluator.
 pub struct RnsRlweHe;
 
@@ -70,11 +85,7 @@ impl RnsRlweHe {
     //     c0 + c1*s + c2*s^2
     //
     // is the product phase before relinearization.
-    pub fn mul_raw(
-        &self,
-        lhs: &RnsCiphertext,
-        rhs: &RnsCiphertext,
-    ) -> RnsMulCiphertext {
+    pub fn mul_raw(&self, lhs: &RnsCiphertext, rhs: &RnsCiphertext) -> RnsMulCiphertext {
         assert_compatible_ciphertexts(lhs, rhs);
 
         let c0 = lhs.v.mul_negacyclic(&rhs.v);
@@ -87,11 +98,7 @@ impl RnsRlweHe {
 
         let c2 = lhs.u.mul_negacyclic(&rhs.u);
 
-        RnsMulCiphertext {
-            c0,
-            c1,
-            c2,
-        }
+        RnsMulCiphertext { c0, c1, c2 }
     }
 
     // Generate an RNS relinearization key.
@@ -107,132 +114,231 @@ impl RnsRlweHe {
     // With base_bits = 8 and our current ~23-24 bit RNS primes,
     // three decomposition digits are sufficient.
     pub fn generate_relinearization_key<R: RngCore>(
-    &self,
-    rng: &mut R,
-    sk: &RnsSecretKey,
-    base_bits: usize,
-) -> RnsRelinearizationKey {
-    assert!(
-        base_bits > 0 && base_bits < 32,
-        "base_bits must be in 1..31"
-    );
-
-    let base = 1u64
-        .checked_shl(base_bits as u32)
-        .expect("base_bits too large");
-
-    // Reconstruct the RNS modulus chain from the secret key.
-    let chain = RnsModulusChain::new(
-        sk.s
-            .residues
-            .iter()
-            .map(PolyRq::modulus)
-            .collect(),
-        sk.s.degree,
-    );
-
-    // Full CRT modulus Q = q0 * q1 * ... * q(k-1).
-    let full_modulus = chain
-        .moduli
-        .iter()
-        .fold(
-            BigUint::from(1u64),
-            |acc, &q| acc * BigUint::from(q),
+        &self,
+        rng: &mut R,
+        sk: &RnsSecretKey,
+        base_bits: usize,
+    ) -> RnsRelinearizationKey {
+        assert!(
+            base_bits > 0 && base_bits < 32,
+            "base_bits must be in 1..31"
         );
 
-    // Number of digits required to represent an element modulo Q
-    // in base B = 2^base_bits.
-    //
-    // For the current ~208-bit Q and B = 2^8:
-    //
-    //     ceil(208 / 8) = 26 digits.
-    let digits_count =
-        ((full_modulus.bits() as usize)
-            + base_bits
-            - 1)
-        / base_bits;
+        let base = 1u64
+            .checked_shl(base_bits as u32)
+            .expect("base_bits too large");
 
-    assert!(
-        digits_count > 0,
-        "relinearization key must contain at least one digit"
-    );
+        // Reconstruct the RNS modulus chain from the secret key.
+        let chain = RnsModulusChain::new(
+            sk.s.residues.iter().map(PolyRq::modulus).collect(),
+            sk.s.degree,
+        );
 
-    let secret_squared =
-        sk.s.mul_negacyclic(&sk.s);
+        // Full CRT modulus Q = q0 * q1 * ... * q(k-1).
+        let full_modulus = chain
+            .moduli
+            .iter()
+            .fold(BigUint::from(1u64), |acc, &q| acc * BigUint::from(q));
 
-    let mut entries =
-        Vec::with_capacity(digits_count);
-
-    for digit_index in 0..digits_count {
-        // Fresh uniform RLWE masking polynomial.
-        let a =
-            sample_uniform_rns_poly(rng, &chain);
-
-        // IMPORTANT:
-        // This samples one small integer polynomial and
-        // represents the SAME polynomial in every RNS limb.
-        let e =
-            sample_small_rns_poly(rng, &chain);
-
-        // Compute B^i * s^2 separately modulo each RNS prime.
+        // Number of digits required to represent an element modulo Q
+        // in base B = 2^base_bits.
         //
-        // We cannot use RnsPoly::mul_scalar() here because
-        // B^i becomes different modulo each q_i.
-        let mut gadget_s2_residues =
-            Vec::with_capacity(chain.moduli.len());
+        // For the current ~208-bit Q and B = 2^8:
+        //
+        //     ceil(208 / 8) = 26 digits.
+        let digits_count = ((full_modulus.bits() as usize) + base_bits - 1) / base_bits;
 
-        for residue_index in 0..chain.moduli.len() {
-            let q =
-                chain.modulus(residue_index);
+        assert!(
+            digits_count > 0,
+            "relinearization key must contain at least one digit"
+        );
 
-            let gadget =
-                mod_pow_u64(
-                    base % q,
-                    digit_index as u64,
-                    q,
-                );
+        let secret_squared = sk.s.mul_negacyclic(&sk.s);
 
-            let scaled =
-                secret_squared
-                    .residue(residue_index)
-                    .mul_scalar(gadget);
+        let mut entries = Vec::with_capacity(digits_count);
 
-            gadget_s2_residues.push(scaled);
-        }
+        for digit_index in 0..digits_count {
+            // Fresh uniform RLWE masking polynomial.
+            let a = sample_uniform_rns_poly(rng, &chain);
 
-        let gadget_s2 =
-            RnsPoly {
+            // IMPORTANT:
+            // This samples one small integer polynomial and
+            // represents the SAME polynomial in every RNS limb.
+            let e = sample_small_rns_poly(rng, &chain);
+
+            // Compute B^i * s^2 separately modulo each RNS prime.
+            //
+            // We cannot use RnsPoly::mul_scalar() here because
+            // B^i becomes different modulo each q_i.
+            let mut gadget_s2_residues = Vec::with_capacity(chain.moduli.len());
+
+            for residue_index in 0..chain.moduli.len() {
+                let q = chain.modulus(residue_index);
+
+                let gadget = mod_pow_u64(base % q, digit_index as u64, q);
+
+                let scaled = secret_squared.residue(residue_index).mul_scalar(gadget);
+
+                gadget_s2_residues.push(scaled);
+            }
+
+            let gadget_s2 = RnsPoly {
                 residues: gadget_s2_residues,
                 degree: chain.degree,
             };
 
-        // k1 = k0*s + 17*e + B^i*s^2
-        let as_product =
-            a.mul_negacyclic(&sk.s);
+            // k1 = k0*s + 17*e + B^i*s^2
+            let as_product = a.mul_negacyclic(&sk.s);
 
-        let scaled_error =
-            e.mul_scalar(
-                PLAINTEXT_MODULUS,
-            );
+            let scaled_error = e.mul_scalar(PLAINTEXT_MODULUS);
 
-        let k1 =
-            as_product
-                .add(&scaled_error)
-                .add(&gadget_s2);
+            let k1 = as_product.add(&scaled_error).add(&gadget_s2);
 
-        entries.push(
-            RnsRelinearizationKeyEntry {
-                k0: a,
-                k1,
-            },
+            entries.push(RnsRelinearizationKeyEntry { k0: a, k1 });
+        }
+
+        RnsRelinearizationKey { entries, base_bits }
+    }
+
+    pub fn generate_automorphism_key<R: RngCore>(
+        &self,
+        rng: &mut R,
+        sk: &RnsSecretKey,
+        exponent: usize,
+        base_bits: usize,
+    ) -> RnsAutomorphismKey {
+        assert!(
+            base_bits > 0 && base_bits < 32,
+            "base_bits must be in 1..31"
         );
+
+        let degree = sk.s.degree;
+        let two_n = 2 * degree;
+        let g = exponent % two_n;
+
+        fn gcd(mut a: usize, mut b: usize) -> usize {
+            while b != 0 {
+                let r = a % b;
+                a = b;
+                b = r;
+            }
+            a
+        }
+
+        assert_eq!(
+            gcd(g, two_n),
+            1,
+            "automorphism exponent must be coprime to 2N"
+        );
+
+        let chain =
+            RnsModulusChain::new(sk.s.residues.iter().map(PolyRq::modulus).collect(), degree);
+
+        let moduli = chain.moduli.clone();
+        let base = 1u64
+            .checked_shl(base_bits as u32)
+            .expect("base_bits too large");
+
+        let full_modulus = moduli
+            .iter()
+            .fold(BigUint::from(1u64), |acc, &q| acc * BigUint::from(q));
+
+        let digit_count = (full_modulus.bits() as usize + base_bits - 1) / base_bits;
+
+        let sigma_s = sk.s.automorphism(exponent);
+        let mut entries = Vec::with_capacity(digit_count);
+
+        for digit_index in 0..digit_count {
+            let k0 = sample_uniform_rns_poly(rng, &chain);
+            let error = sample_small_rns_poly(rng, &chain);
+
+            // Build B^i * sigma(s), with B^i reduced separately
+            // modulo each RNS prime.
+            let gadget_sigma_s = RnsPoly {
+                residues: moduli
+                    .iter()
+                    .enumerate()
+                    .map(|(residue_index, &q)| {
+                        let gadget = mod_pow_u64(base % q, digit_index as u64, q);
+                        sigma_s.residue(residue_index).mul_scalar(gadget)
+                    })
+                    .collect(),
+                degree,
+            };
+
+            // k1 = k0*s + 17*e + B^i*sigma(s).
+            let k1 = k0
+                .mul_negacyclic(&sk.s)
+                .add(&error.mul_scalar(PLAINTEXT_MODULUS))
+                .add(&gadget_sigma_s);
+
+            entries.push(RnsKeySwitchKeyEntry { k0, k1 });
+        }
+
+        RnsAutomorphismKey {
+            exponent: g,
+            entries,
+            base_bits,
+            moduli,
+            degree,
+        }
     }
 
-    RnsRelinearizationKey {
-        entries,
-        base_bits,
+    /// Apply X -> X^exponent and key-switch the result back to the
+    /// original secret key. This first implementation requires the
+    /// ciphertext to use the full RNS basis.
+    pub fn apply_automorphism(
+        &self,
+        ciphertext: &RnsCiphertext,
+        key: &RnsAutomorphismKey,
+    ) -> RnsCiphertext {
+        assert_eq!(ciphertext.u.degree, key.degree);
+        assert_eq!(ciphertext.v.degree, key.degree);
+
+        let source_moduli: Vec<u64> = ciphertext.u.residues.iter().map(PolyRq::modulus).collect();
+
+        assert_eq!(
+            source_moduli, key.moduli,
+            "automorphism key and ciphertext must use the same full RNS basis"
+        );
+
+        assert_eq!(
+            ciphertext.v.residue_count(),
+            ciphertext.u.residue_count(),
+            "ciphertext components must use the same RNS basis"
+        );
+
+        let sigma_u = ciphertext.u.automorphism(key.exponent);
+        let sigma_v = ciphertext.v.automorphism(key.exponent);
+
+        // Decompose sigma(u) over the full CRT modulus Q.
+        let digits = global_decompose_rns_poly(&sigma_u, key.base_bits);
+
+        assert_eq!(
+            digits.len(),
+            key.entries.len(),
+            "automorphism key decomposition length mismatch"
+        );
+
+        let chain = RnsModulusChain::new(key.moduli.clone(), key.degree);
+
+        let mut sum_k0 = RnsPoly::zero(&chain);
+        let mut new_v = sigma_v;
+
+        for (digit, entry) in digits.iter().zip(key.entries.iter()) {
+            sum_k0 = sum_k0.add(&digit.mul_negacyclic(&entry.k0));
+
+            new_v = new_v.sub(&digit.mul_negacyclic(&entry.k1));
+        }
+
+        // With k1 - k0*s = B^i*sigma(s) + 17*e,
+        // the new phase is sigma(v) - sigma(u)*sigma(s),
+        // plus noise divisible by the plaintext modulus.
+        RnsCiphertext {
+            u: sum_k0.neg(),
+            v: new_v,
+        }
     }
-}
 
     // Relinearize a three-component ciphertext.
     //
@@ -261,92 +367,71 @@ impl RnsRlweHe {
     // equals the original product phase plus additional
     // relinearization noise.
     pub fn relinearize(
-    &self,
-    product: &RnsMulCiphertext,
-    key: &RnsRelinearizationKey,
-) -> RnsCiphertext {
-    assert!(
-        !key.entries.is_empty(),
-        "relinearization key must not be empty"
-    );
-
-    assert_eq!(
-        product.c2.residue_count(),
-        key.entries[0].k0.residue_count(),
-        "product and relinearization key use different RNS bases"
-    );
-
-    // IMPORTANT:
-    //
-    // Decompose c2 ONCE over the FULL CRT modulus Q.
-    //
-    // Every RNS limb receives the SAME digit polynomial.
-    let digits =
-        global_decompose_rns_poly(
-            &product.c2,
-            key.base_bits,
+        &self,
+        product: &RnsMulCiphertext,
+        key: &RnsRelinearizationKey,
+    ) -> RnsCiphertext {
+        assert!(
+            !key.entries.is_empty(),
+            "relinearization key must not be empty"
         );
 
-    assert_eq!(
-        digits.len(),
-        key.entries.len(),
-        "global ciphertext decomposition and relinearization key have different lengths"
-    );
+        assert_eq!(
+            product.c2.residue_count(),
+            key.entries[0].k0.residue_count(),
+            "product and relinearization key use different RNS bases"
+        );
 
-    // Start from:
-    //
-    //     c0 + c1*s + c2*s^2
-    //
-    // and replace c2*s^2 with the gadget decomposition.
-    //
-    // u' = -c1 + sum_i d_i*k0_i
-    // v' =  c0 + sum_i d_i*k1_i
-    //
-    // Since:
-    //
-    //     k1_i - k0_i*s
-    //       = 17*e_i + B^i*s^2
-    //
-    // and:
-    //
-    //     c2 = sum_i d_i*B^i   (mod Q)
-    //
-    // we obtain the original phase plus
-    // plaintext-modulus-scaled relinearization noise.
+        // IMPORTANT:
+        //
+        // Decompose c2 ONCE over the FULL CRT modulus Q.
+        //
+        // Every RNS limb receives the SAME digit polynomial.
+        let digits = global_decompose_rns_poly(&product.c2, key.base_bits);
 
-    let mut u =
-        product.c1.neg();
+        assert_eq!(
+            digits.len(),
+            key.entries.len(),
+            "global ciphertext decomposition and relinearization key have different lengths"
+        );
 
-    let mut v =
-        product.c0.clone();
+        // Start from:
+        //
+        //     c0 + c1*s + c2*s^2
+        //
+        // and replace c2*s^2 with the gadget decomposition.
+        //
+        // u' = -c1 + sum_i d_i*k0_i
+        // v' =  c0 + sum_i d_i*k1_i
+        //
+        // Since:
+        //
+        //     k1_i - k0_i*s
+        //       = 17*e_i + B^i*s^2
+        //
+        // and:
+        //
+        //     c2 = sum_i d_i*B^i   (mod Q)
+        //
+        // we obtain the original phase plus
+        // plaintext-modulus-scaled relinearization noise.
 
-    for (digit, entry) in
-        digits.iter().zip(
-            key.entries.iter()
-        )
-    {
-        let digit_k0 =
-            digit.mul_negacyclic(
-                &entry.k0
-            );
+        let mut u = product.c1.neg();
 
-        let digit_k1 =
-            digit.mul_negacyclic(
-                &entry.k1
-            );
+        let mut v = product.c0.clone();
 
-        u =
-            u.add(&digit_k0);
+        for (digit, entry) in digits.iter().zip(key.entries.iter()) {
+            let digit_k0 = digit.mul_negacyclic(&entry.k0);
 
-        v =
-            v.add(&digit_k1);
+            let digit_k1 = digit.mul_negacyclic(&entry.k1);
+
+            u = u.add(&digit_k0);
+
+            v = v.add(&digit_k1);
+        }
+
+        RnsCiphertext { u, v }
     }
-
-    RnsCiphertext {
-        u,
-        v,
-    }
-}
 
     // Full ciphertext x ciphertext multiplication:
     //
@@ -363,15 +448,10 @@ impl RnsRlweHe {
         rhs: &RnsCiphertext,
         relin_key: &RnsRelinearizationKey,
     ) -> RnsCiphertext {
-        let product =
-            self.mul_raw(lhs, rhs);
+        let product = self.mul_raw(lhs, rhs);
 
-        self.relinearize(
-            &product,
-            relin_key,
-        )
+        self.relinearize(&product, relin_key)
     }
-
 
     // BGV-style modulus switch from the current RNS base
     // to the same base with its final modulus removed.
@@ -385,12 +465,7 @@ impl RnsRlweHe {
         ciphertext: &RnsCiphertext,
         target_chain: &RnsModulusChain,
     ) -> RnsCiphertext {
-        let source_moduli: Vec<u64> = ciphertext
-            .u
-            .residues
-            .iter()
-            .map(PolyRq::modulus)
-            .collect();
+        let source_moduli: Vec<u64> = ciphertext.u.residues.iter().map(PolyRq::modulus).collect();
 
         assert_eq!(
             ciphertext.v.residue_count(),
@@ -399,8 +474,7 @@ impl RnsRlweHe {
         );
 
         assert_eq!(
-            target_chain.degree,
-            ciphertext.u.degree,
+            target_chain.degree, ciphertext.u.degree,
             "source and target polynomial degrees differ"
         );
 
@@ -428,13 +502,9 @@ impl RnsRlweHe {
     }
 }
 
-fn assert_compatible_ciphertexts(
-    lhs: &RnsCiphertext,
-    rhs: &RnsCiphertext,
-) {
+fn assert_compatible_ciphertexts(lhs: &RnsCiphertext, rhs: &RnsCiphertext) {
     assert_eq!(
-        lhs.u.degree,
-        rhs.u.degree,
+        lhs.u.degree, rhs.u.degree,
         "ciphertexts must use the same polynomial degree"
     );
 
@@ -467,54 +537,35 @@ fn assert_compatible_ciphertexts(
     }
 }
 
-fn mod_inverse_u64(
-    a: u64,
-    modulus: u64,
-) -> u64 {
-    assert!(
-        a != 0,
-        "modular inverse does not exist for zero"
-    );
+fn mod_inverse_u64(a: u64, modulus: u64) -> u64 {
+    assert!(a != 0, "modular inverse does not exist for zero");
 
     let mut t: i128 = 0;
     let mut new_t: i128 = 1;
 
-    let mut r =
-        modulus as i128;
-    let mut new_r =
-        a as i128;
+    let mut r = modulus as i128;
+    let mut new_r = a as i128;
 
     while new_r != 0 {
-        let quotient =
-            r / new_r;
+        let quotient = r / new_r;
 
-        let next_t =
-            t - quotient * new_t;
+        let next_t = t - quotient * new_t;
 
         t = new_t;
         new_t = next_t;
 
-        let next_r =
-            r - quotient * new_r;
+        let next_r = r - quotient * new_r;
 
         r = new_r;
         new_r = next_r;
     }
 
-    assert_eq!(
-        r,
-        1,
-        "value is not invertible modulo modulus"
-    );
+    assert_eq!(r, 1, "value is not invertible modulo modulus");
 
     t.rem_euclid(modulus as i128) as u64
 }
 
-fn mod_pow_u64(
-    mut base: u64,
-    mut exponent: u64,
-    modulus: u64,
-) -> u64 {
+fn mod_pow_u64(mut base: u64, mut exponent: u64, modulus: u64) -> u64 {
     if modulus == 1 {
         return 0;
     }
@@ -525,18 +576,10 @@ fn mod_pow_u64(
 
     while exponent > 0 {
         if exponent & 1 == 1 {
-            result =
-                ((result as u128
-                    * base as u128)
-                    % modulus as u128)
-                    as u64;
+            result = ((result as u128 * base as u128) % modulus as u128) as u64;
         }
 
-        base =
-            ((base as u128
-                * base as u128)
-                % modulus as u128)
-                as u64;
+        base = ((base as u128 * base as u128) % modulus as u128) as u64;
 
         exponent >>= 1;
     }
@@ -544,14 +587,8 @@ fn mod_pow_u64(
     result
 }
 
-fn biguint_to_u64(
-    value: &BigUint,
-) -> u64 {
-    value
-        .to_u64_digits()
-        .first()
-        .copied()
-        .unwrap_or(0)
+fn biguint_to_u64(value: &BigUint) -> u64 {
+    value.to_u64_digits().first().copied().unwrap_or(0)
 }
 
 // Decompose an RNS polynomial using the FULL CRT modulus.
@@ -564,45 +601,31 @@ fn biguint_to_u64(
 //
 // The returned digit polynomials have identical integer
 // coefficients across every RNS limb.
-fn global_decompose_rns_poly(
-    input: &RnsPoly,
-    base_bits: usize,
-) -> Vec<RnsPoly> {
+fn global_decompose_rns_poly(input: &RnsPoly, base_bits: usize) -> Vec<RnsPoly> {
     assert!(
         base_bits > 0 && base_bits < 32,
         "base_bits must be in 1..31"
     );
 
-    let residue_count =
-        input.residue_count();
+    let residue_count = input.residue_count();
 
     assert!(
         residue_count > 0,
         "RNS polynomial must contain at least one residue"
     );
 
-    let degree =
-        input.degree;
+    let degree = input.degree;
 
-    let moduli: Vec<u64> =
-        (0..residue_count)
-            .map(|i| {
-                input
-                    .residue(i)
-                    .modulus()
-            })
-            .collect();
+    let moduli: Vec<u64> = (0..residue_count)
+        .map(|i| input.residue(i).modulus())
+        .collect();
 
     // Full CRT modulus:
     //
     //     Q = q0*q1*...*q(k-1)
-    let full_modulus =
-        moduli.iter().fold(
-            BigUint::from(1u64),
-            |acc, &q| {
-                acc * BigUint::from(q)
-            },
-        );
+    let full_modulus = moduli
+        .iter()
+        .fold(BigUint::from(1u64), |acc, &q| acc * BigUint::from(q));
 
     // CRT constants:
     //
@@ -612,135 +635,75 @@ fn global_decompose_rns_poly(
     // so:
     //
     //     x = sum_i r_i*M_i*inv_i mod Q
-    let mut crt_constants =
-        Vec::with_capacity(residue_count);
+    let mut crt_constants = Vec::with_capacity(residue_count);
 
     for &q_i in &moduli {
-        let q_i_big =
-            BigUint::from(q_i);
+        let q_i_big = BigUint::from(q_i);
 
-        let m_i =
-            &full_modulus / &q_i_big;
+        let m_i = &full_modulus / &q_i_big;
 
-        let m_i_mod_q =
-            (&m_i % q_i)
-                .to_u64_digits()
-                .first()
-                .copied()
-                .unwrap_or(0);
+        let m_i_mod_q = (&m_i % q_i).to_u64_digits().first().copied().unwrap_or(0);
 
-        let inverse =
-            mod_inverse_u64(
-                m_i_mod_q,
-                q_i,
-            );
+        let inverse = mod_inverse_u64(m_i_mod_q, q_i);
 
-        crt_constants.push(
-            (m_i, inverse)
-        );
+        crt_constants.push((m_i, inverse));
     }
 
-    let base =
-        1u64
-            .checked_shl(
-                base_bits as u32
-            )
-            .expect("base_bits too large");
+    let base = 1u64
+        .checked_shl(base_bits as u32)
+        .expect("base_bits too large");
 
-    let base_big =
-        BigUint::from(base);
+    let base_big = BigUint::from(base);
 
     // ceil(log_B(Q))
-    let digits_count =
-        ((full_modulus.bits() as usize)
-            + base_bits
-            - 1)
-        / base_bits;
+    let digits_count = ((full_modulus.bits() as usize) + base_bits - 1) / base_bits;
 
-    let mut digit_coefficients =
-        vec![
-            vec![0u64; degree];
-            digits_count
-        ];
+    let mut digit_coefficients = vec![vec![0u64; degree]; digits_count];
 
     for coefficient_index in 0..degree {
         // Reconstruct this coefficient modulo the full Q.
-        let mut value =
-            BigUint::from(0u64);
+        let mut value = BigUint::from(0u64);
 
         for residue_index in 0..residue_count {
-            let residue =
-                input
-                    .residue(residue_index)
-                    .coefficients()
-                    [coefficient_index];
+            let residue = input.residue(residue_index).coefficients()[coefficient_index];
 
-            let (ref m_i, inverse) =
-                crt_constants[residue_index];
+            let (ref m_i, inverse) = crt_constants[residue_index];
 
-            value +=
-                BigUint::from(residue)
-                    * m_i
-                    * BigUint::from(
-                        inverse
-                    );
+            value += BigUint::from(residue) * m_i * BigUint::from(inverse);
         }
 
         value %= &full_modulus;
 
         // Extract common base-B digits.
         for digit_index in 0..digits_count {
-            let digit =
-                &value % &base_big;
+            let digit = &value % &base_big;
 
-            digit_coefficients
-                [digit_index]
-                [coefficient_index] =
-                biguint_to_u64(&digit);
+            digit_coefficients[digit_index][coefficient_index] = biguint_to_u64(&digit);
 
             value /= &base_big;
         }
 
-        debug_assert!(
-            value == BigUint::from(0u64)
-        );
+        debug_assert!(value == BigUint::from(0u64));
     }
 
     // Lift every GLOBAL digit into all RNS limbs.
     digit_coefficients
         .into_iter()
         .map(|coeffs| {
-            let residues =
-                moduli
-                    .iter()
-                    .map(|&q| {
-                        PolyRq::from_coeffs(
-                            &coeffs,
-                            degree,
-                            q,
-                        )
-                    })
-                    .collect();
+            let residues = moduli
+                .iter()
+                .map(|&q| PolyRq::from_coeffs(&coeffs, degree, q))
+                .collect();
 
-            RnsPoly {
-                residues,
-                degree,
-            }
+            RnsPoly { residues, degree }
         })
         .collect()
 }
 
-fn bgv_modswitch_rns_poly(
-    input: &RnsPoly,
-    target_chain: &RnsModulusChain,
-) -> RnsPoly {
+fn bgv_modswitch_rns_poly(input: &RnsPoly, target_chain: &RnsModulusChain) -> RnsPoly {
     const P: u64 = 17;
 
-    let source_moduli: Vec<u64> = input
-        .residues
-        .iter()
-        .map(PolyRq::modulus)
-        .collect();
+    let source_moduli: Vec<u64> = input.residues.iter().map(PolyRq::modulus).collect();
 
     assert_eq!(input.degree, target_chain.degree);
 
@@ -756,15 +719,14 @@ fn bgv_modswitch_rns_poly(
         "target must be the source modulus prefix"
     );
 
-    let source_q = source_moduli.iter().fold(
-        BigUint::from(1u64),
-        |acc, &q| acc * BigUint::from(q),
-    );
+    let source_q = source_moduli
+        .iter()
+        .fold(BigUint::from(1u64), |acc, &q| acc * BigUint::from(q));
 
-    let target_q = target_chain.moduli.iter().fold(
-        BigUint::from(1u64),
-        |acc, &q| acc * BigUint::from(q),
-    );
+    let target_q = target_chain
+        .moduli
+        .iter()
+        .fold(BigUint::from(1u64), |acc, &q| acc * BigUint::from(q));
 
     assert_eq!(
         &source_q % &target_q,
@@ -773,17 +735,13 @@ fn bgv_modswitch_rns_poly(
     );
 
     assert_eq!(
-        rns_bgv_biguint_to_u64(
-            &(&source_q % BigUint::from(P))
-        ),
+        rns_bgv_biguint_to_u64(&(&source_q % BigUint::from(P))),
         1,
         "source CRT modulus must equal 1 modulo 17"
     );
 
     assert_eq!(
-        rns_bgv_biguint_to_u64(
-            &(&target_q % BigUint::from(P))
-        ),
+        rns_bgv_biguint_to_u64(&(&target_q % BigUint::from(P))),
         1,
         "target CRT modulus must equal 1 modulo 17"
     );
@@ -799,93 +757,70 @@ fn bgv_modswitch_rns_poly(
         "dropped modulus must fit in u64"
     );
 
-    assert_eq!(
-        dropped % P,
-        1,
-        "dropped modulus must equal 1 modulo 17"
-    );
+    assert_eq!(dropped % P, 1, "dropped modulus must equal 1 modulo 17");
 
     let inverse_p = rns_bgv_mod_inverse_u64(P, dropped);
     let dropped_bigint = BigInt::from(dropped);
 
     let half_q = &source_q / BigUint::from(2u64);
 
-    let source_q_bigint = BigInt::from_biguint(
-        Sign::Plus,
-        source_q.clone(),
-    );
+    let source_q_bigint = BigInt::from_biguint(Sign::Plus, source_q.clone());
 
     // CRT reconstruction constants:
     // M_i = Q / q_i and inv_i = M_i^(-1) mod q_i.
-    let mut crt_constants: Vec<(BigUint, u64)> =
-        Vec::with_capacity(source_moduli.len());
+    let mut crt_constants: Vec<(BigUint, u64)> = Vec::with_capacity(source_moduli.len());
 
     for &q_i in &source_moduli {
         let q_i_big = BigUint::from(q_i);
         let m_i = &source_q / &q_i_big;
 
-        let m_i_mod_q =
-            rns_bgv_biguint_to_u64(&(&m_i % &q_i_big));
+        let m_i_mod_q = rns_bgv_biguint_to_u64(&(&m_i % &q_i_big));
 
-        let inverse =
-            rns_bgv_mod_inverse_u64(m_i_mod_q, q_i);
+        let inverse = rns_bgv_mod_inverse_u64(m_i_mod_q, q_i);
 
         crt_constants.push((m_i, inverse));
     }
 
-    let mut switched_coefficients: Vec<BigInt> =
-        Vec::with_capacity(input.degree);
+    let mut switched_coefficients: Vec<BigInt> = Vec::with_capacity(input.degree);
 
     for coefficient_index in 0..input.degree {
         // Reconstruct the source coefficient in [0, Q).
         let mut value = BigUint::from(0u64);
 
         for residue_index in 0..source_moduli.len() {
-            let residue = input
-                .residue(residue_index)
-                .coefficients()[coefficient_index];
+            let residue = input.residue(residue_index).coefficients()[coefficient_index];
 
-            let (m_i, inverse) =
-                &crt_constants[residue_index];
+            let (m_i, inverse) = &crt_constants[residue_index];
 
-            value += BigUint::from(residue)
-                * m_i
-                * BigUint::from(*inverse);
+            value += BigUint::from(residue) * m_i * BigUint::from(*inverse);
         }
 
         value %= &source_q;
 
         // Center the CRT representative.
         let centered = if value > half_q {
-            BigInt::from_biguint(Sign::Plus, value)
-                - source_q_bigint.clone()
+            BigInt::from_biguint(Sign::Plus, value) - source_q_bigint.clone()
         } else {
             BigInt::from_biguint(Sign::Plus, value)
         };
 
         // Choose k so that centered + 17*k is divisible by dropped.
-        let mut remainder =
-            (-centered.clone()) % &dropped_bigint;
+        let mut remainder = (-centered.clone()) % &dropped_bigint;
 
         if remainder.sign() == Sign::Minus {
             remainder += &dropped_bigint;
         }
 
-        let remainder_u64 =
-            rns_bgv_bigint_to_u64(&remainder);
+        let remainder_u64 = rns_bgv_bigint_to_u64(&remainder);
 
-        let mut k = (
-            (remainder_u64 as u128 * inverse_p as u128)
-                % dropped as u128
-        ) as i128;
+        let mut k = ((remainder_u64 as u128 * inverse_p as u128) % dropped as u128) as i128;
 
         // Use the balanced representative of k.
         if k > (dropped / 2) as i128 {
             k -= dropped as i128;
         }
 
-        let corrected =
-            centered + BigInt::from(P) * BigInt::from(k);
+        let corrected = centered + BigInt::from(P) * BigInt::from(k);
 
         assert_eq!(
             &corrected % &dropped_bigint,
@@ -916,11 +851,7 @@ fn bgv_modswitch_rns_poly(
                 })
                 .collect();
 
-            PolyRq::from_coeffs(
-                &coefficients,
-                input.degree,
-                q,
-            )
+            PolyRq::from_coeffs(&coefficients, input.degree, q)
         })
         .collect();
 
@@ -930,10 +861,7 @@ fn bgv_modswitch_rns_poly(
     }
 }
 
-fn rns_bgv_mod_inverse_u64(
-    a: u64,
-    modulus: u64,
-) -> u64 {
+fn rns_bgv_mod_inverse_u64(a: u64, modulus: u64) -> u64 {
     assert!(modulus > 1);
     assert!(a > 0);
 
@@ -954,39 +882,23 @@ fn rns_bgv_mod_inverse_u64(
         new_r = next_r;
     }
 
-    assert_eq!(
-        r, 1,
-        "modular inverse does not exist"
-    );
+    assert_eq!(r, 1, "modular inverse does not exist");
 
     t.rem_euclid(modulus as i128) as u64
 }
 
-fn rns_bgv_biguint_to_u64(
-    value: &BigUint,
-) -> u64 {
+fn rns_bgv_biguint_to_u64(value: &BigUint) -> u64 {
     let digits = value.to_u64_digits();
 
-    assert!(
-        digits.len() <= 1,
-        "integer does not fit in u64"
-    );
+    assert!(digits.len() <= 1, "integer does not fit in u64");
 
     digits.first().copied().unwrap_or(0)
 }
 
-fn rns_bgv_bigint_to_u64(
-    value: &BigInt,
-) -> u64 {
-    assert_ne!(
-        value.sign(),
-        Sign::Minus,
-        "expected a nonnegative integer"
-    );
+fn rns_bgv_bigint_to_u64(value: &BigInt) -> u64 {
+    assert_ne!(value.sign(), Sign::Minus, "expected a nonnegative integer");
 
-    let unsigned = value
-        .to_biguint()
-        .expect("BigInt conversion failed");
+    let unsigned = value.to_biguint().expect("BigInt conversion failed");
 
     rns_bgv_biguint_to_u64(&unsigned)
 }

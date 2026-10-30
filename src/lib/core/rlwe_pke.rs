@@ -7,13 +7,12 @@
     reference/prototype PKE
 */
 
-use rand::RngCore;
-use crate::algebra::ring::{PolyRq, Q};
-use crate::algebra::sampling::{
-    sample_small_poly,
-    sample_uniform_poly,
-};
+use crate::algebra::ring::PolyRq;
+use crate::algebra::sampling::{sample_small_poly, sample_uniform_poly};
 use crate::core::rlwe::{PublicKey, SecretKey};
+use crate::parameters::rlwe_prototype as parameter_profile;
+use crate::parameters::rlwe_prototype::CIPHERTEXT_MODULUS as Q;
+use rand::RngCore;
 
 /// Ciphertext della RLWE-PKE:
 ///
@@ -41,9 +40,6 @@ pub struct RelinearizationKey {
     pub entries: Vec<RelinearizationKeyEntry>,
     pub base_bits: usize,
 }
-
-
-
 
 /// Encoding del messaggio:
 ///
@@ -176,70 +172,38 @@ pub fn decrypt(sk: &SecretKey, ciphertext: &Ciphertext, n: usize, message_len: u
         .collect()
 }
 
-    pub fn generate_relinearization_key<R: RngCore>(
+pub fn generate_relinearization_key<R: RngCore>(
     rng: &mut R,
     sk: &SecretKey,
     base_bits: usize,
 ) -> RelinearizationKey {
-    assert!(
-        base_bits > 0,
-        "base_bits must be greater than zero"
-    );
+    assert!(base_bits > 0, "base_bits must be greater than zero");
 
-    let q =
-        sk.s.modulus();
+    let q = sk.s.modulus();
 
-    let base =
-        1u64
-            .checked_shl(base_bits as u32)
-            .expect(
-                "base_bits is too large"
-            );
+    let base = 1u64
+        .checked_shl(base_bits as u32)
+        .expect("base_bits is too large");
 
-    let mut entries =
-        Vec::new();
+    let mut entries = Vec::new();
 
-    let secret_squared =
-        sk.s.mul_ntt(&sk.s);
+    let secret_squared = sk.s.mul_ntt(&sk.s);
 
-    let mut gadget =
-        1u64;
+    let mut gadget = 1u64;
 
     while gadget < q {
-        let a =
-            sample_uniform_poly(
-                rng,
-                sk.s.degree_bound(),
-                q,
-            );
+        let a = sample_uniform_poly(rng, sk.s.degree_bound(), q);
 
-        let e =
-            sample_small_poly(
-                rng,
-                sk.s.degree_bound(),
-                q,
-            );
+        let e = sample_small_poly(rng, sk.s.degree_bound(), q);
 
         // k1 = a*s + e + gadget*s^2
-        let as_product =
-            a.mul_ntt(&sk.s);
+        let as_product = a.mul_ntt(&sk.s);
 
-        let gadget_s2 =
-            secret_squared.mul_scalar(
-                gadget,
-            );
+        let gadget_s2 = secret_squared.mul_scalar(gadget);
 
-        let k1 =
-            as_product
-                .add(&e)
-                .add(&gadget_s2);
+        let k1 = as_product.add(&e).add(&gadget_s2);
 
-        entries.push(
-            RelinearizationKeyEntry {
-                k0: a,
-                k1,
-            }
-        );
+        entries.push(RelinearizationKeyEntry { k0: a, k1 });
 
         if gadget > q / base {
             break;
@@ -248,61 +212,43 @@ pub fn decrypt(sk: &SecretKey, ciphertext: &Ciphertext, n: usize, message_len: u
         gadget *= base;
     }
 
-    RelinearizationKey {
-        entries,
-        base_bits,
-    }
-}    
+    RelinearizationKey { entries, base_bits }
+}
 
-    pub fn relinearize(
-        product: &MulCiphertext,
-        key: &RelinearizationKey,
-    ) -> Ciphertext {
-        assert!(
-            !key.entries.is_empty(),
-            "relinearization key must not be empty"
-        );
+pub fn relinearize(product: &MulCiphertext, key: &RelinearizationKey) -> Ciphertext {
+    assert!(
+        !key.entries.is_empty(),
+        "relinearization key must not be empty"
+    );
 
-        let digits = crate::core::rlwe_pre::decompose_poly(
-            &product.c2,
-            key.base_bits,
-        );
+    let digits = crate::core::rlwe_pre::decompose_poly(&product.c2, key.base_bits);
 
-        assert_eq!(
-            digits.len(),
-            key.entries.len(),
-            "ciphertext decomposition and relinearization key have different lengths"
-        );
+    assert_eq!(
+        digits.len(),
+        key.entries.len(),
+        "ciphertext decomposition and relinearization key have different lengths"
+    );
 
-        // We want:
-        //
-        // v' - u'*s
-        //
-        // = c0 + c1*s + c2*s^2
-        //
-        // Therefore u' starts as -c1.
-        let mut u = product.c1.neg();
-        let mut v = product.c0.clone();
+    // We want:
+    //
+    // v' - u'*s
+    //
+    // = c0 + c1*s + c2*s^2
+    //
+    // Therefore u' starts as -c1.
+    let mut u = product.c1.neg();
+    let mut v = product.c0.clone();
 
-        for (digit, entry) in digits.iter().zip(key.entries.iter()) {
-            let digit_k0 = digit.mul_ntt(&entry.k0);
-            let digit_k1 = digit.mul_ntt(&entry.k1);
+    for (digit, entry) in digits.iter().zip(key.entries.iter()) {
+        let digit_k0 = digit.mul_ntt(&entry.k0);
+        let digit_k1 = digit.mul_ntt(&entry.k1);
 
-            u = u.add(&digit_k0);
-            v = v.add(&digit_k1);
-        }
-
-        Ciphertext {
-            u,
-            v,
-        }
+        u = u.add(&digit_k0);
+        v = v.add(&digit_k1);
     }
 
-
-
-
-
-
+    Ciphertext { u, v }
+}
 
 impl Ciphertext {
     pub fn add(&self, other: &Ciphertext) -> Ciphertext {
@@ -334,22 +280,18 @@ impl Ciphertext {
     pub fn mul_raw(&self, other: &Ciphertext) -> MulCiphertext {
         let c0 = self.v.mul_ntt(&other.v);
 
-        let c1 = self.v
+        let c1 = self
+            .v
             .mul_ntt(&other.u)
             .add(&self.u.mul_ntt(&other.v))
             .neg();
 
         let c2 = self.u.mul_ntt(&other.u);
 
-        MulCiphertext {
-            c0,
-            c1,
-            c2,
-        }
+        MulCiphertext { c0, c1, c2 }
     }
 }
 //////////////////////////////////////////////////////////////////////////////// binary function end
-
 
 //////////////////////////////////////////////////////////////////////////////// generalization of encrypt() and decrypt() from binary to poly representation
 /// Encrypts a polynomial plaintext M in R_q.
@@ -372,7 +314,7 @@ pub fn encrypt_poly<R: rand_core::RngCore>(
     assert_eq!(pk.a.degree_bound(), n);
     assert_eq!(pk.b.degree_bound(), n);
 
-    const PLAINTEXT_MODULUS: u64 = 17;
+    const PLAINTEXT_MODULUS: u64 = parameter_profile::PLAINTEXT_MODULUS;
 
     let q = pk.a.modulus();
     let delta = q / PLAINTEXT_MODULUS;
@@ -390,11 +332,7 @@ pub fn encrypt_poly<R: rand_core::RngCore>(
     let encoded_message = message.mul_scalar(delta);
 
     // v = b*r + e2 + Delta*M
-    let v = pk
-        .b
-        .mul_ntt(&r)
-        .add(&e2)
-        .add(&encoded_message);
+    let v = pk.b.mul_ntt(&r).add(&e2).add(&encoded_message);
 
     Ciphertext { u, v }
 }
@@ -405,12 +343,8 @@ pub fn encrypt_poly<R: rand_core::RngCore>(
 ///     v - u*s = Delta*M + noise
 ///
 /// Each coefficient is then decoded back to {0, ..., 16}.
-pub fn decrypt_poly(
-    sk: &SecretKey,
-    ciphertext: &Ciphertext,
-    n: usize,
-) -> PolyRq {
-    const PLAINTEXT_MODULUS: u64 = 17;
+pub fn decrypt_poly(sk: &SecretKey, ciphertext: &Ciphertext, n: usize) -> PolyRq {
+    const PLAINTEXT_MODULUS: u64 = parameter_profile::PLAINTEXT_MODULUS;
 
     let q = sk.s.modulus();
 
@@ -420,9 +354,7 @@ pub fn decrypt_poly(
     assert_eq!(ciphertext.u.modulus(), q);
     assert_eq!(ciphertext.v.modulus(), q);
 
-    let decrypted = ciphertext
-        .v
-        .sub(&ciphertext.u.mul_ntt(&sk.s));
+    let decrypted = ciphertext.v.sub(&ciphertext.u.mul_ntt(&sk.s));
 
     let coeffs = decrypted.coefficients();
 
@@ -460,11 +392,11 @@ pub fn decrypt_poly(
 
 /// Compatibility wrapper for the HE polynomial API.
 ///
-/// The plaintext coefficients must belong to `{0, ..., 16}`. This wrapper
+/// The plaintext coefficients must belong to `0..PLAINTEXT_MODULUS`. This wrapper
 /// converts the input into the ciphertext modulus and then delegates to the
 /// Delta-scaled encoding used by `encrypt_poly`. Keeping a second unscaled
 /// encoding here would make ordinary RLWE noise incompatible with reduction
-/// modulo 17.
+/// modulo the configured plaintext modulus.
 pub fn encrypt_he_poly<R: rand_core::RngCore>(
     rng: &mut R,
     pk: &PublicKey,
@@ -481,7 +413,10 @@ pub fn encrypt_he_poly<R: rand_core::RngCore>(
         .iter()
         .take(n)
         .map(|&coefficient| {
-            assert!(coefficient < 17, "HE plaintext coefficient must be in 0..=16");
+            assert!(
+                coefficient < parameter_profile::PLAINTEXT_MODULUS,
+                "HE plaintext coefficient is outside the configured plaintext modulus"
+            );
             coefficient
         })
         .collect();
@@ -491,13 +426,14 @@ pub fn encrypt_he_poly<R: rand_core::RngCore>(
 
 /// Decrypts a ciphertext created by `encrypt_he_poly()`.
 ///
-/// The result is represented in `Z_17[X]/(X^n + 1)`. This is intentionally a
+/// The result is represented in `Z_t[X]/(X^n + 1)`, where `t` is the active
+/// RLWE plaintext modulus. This is intentionally a
 /// thin wrapper around the matching Delta-scaled decoder.
-pub fn decrypt_he_poly(
-    sk: &SecretKey,
-    ciphertext: &Ciphertext,
-    n: usize,
-) -> PolyRq {
+pub fn decrypt_he_poly(sk: &SecretKey, ciphertext: &Ciphertext, n: usize) -> PolyRq {
     let decoded = decrypt_poly(sk, ciphertext, n);
-    PolyRq::from_coeffs(decoded.coefficients(), n, 17)
+    PolyRq::from_coeffs(
+        decoded.coefficients(),
+        n,
+        parameter_profile::PLAINTEXT_MODULUS,
+    )
 }

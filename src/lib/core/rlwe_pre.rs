@@ -5,6 +5,10 @@ use crate::algebra::sampling::sample_small_poly;
 use crate::core::rlwe::{PublicKey, SecretKey};
 
 use crate::core::rlwe_pke::Ciphertext; //reencrypt()
+use crate::parameters::rlwe_prototype as parameter_profile;
+
+/// Default gadget base for the current prototype; callers may override it.
+pub const DEFAULT_PRE_GADGET_BASE_BITS: usize = parameter_profile::PRE_GADGET_BASE_BITS;
 
 pub struct ReEncryptionKey {
     pub entries: Vec<KeySwitchEntry>,
@@ -29,10 +33,7 @@ pub struct KeySwitchEntry {
 ///
 /// The decomposition is performed on the canonical coefficient
 /// representatives in [0, q).
-pub fn decompose_poly(
-    input: &PolyRq,
-    base_bits: usize,
-) -> Vec<PolyRq> {
+pub fn decompose_poly(input: &PolyRq, base_bits: usize) -> Vec<PolyRq> {
     assert!(base_bits > 0, "base_bits must be greater than zero");
 
     let base = 1u64
@@ -89,7 +90,7 @@ pub fn generate_rekey<R: RngCore>(
     pk_b: &PublicKey,
     base_bits: usize,
 ) -> ReEncryptionKey {
-    assert!(base_bits > 0, "base_bits must be greater than zero");
+    assert!((1..=62).contains(&base_bits), "base_bits must be in 1..=62");
 
     let q = sk_a.s.modulus();
     let n = sk_a.s.degree_bound();
@@ -110,6 +111,12 @@ pub fn generate_rekey<R: RngCore>(
         pk_b.a.degree_bound(),
         n,
         "Alice and Bob must use the same degree bound"
+    );
+
+    assert_eq!(
+        pk_b.b.degree_bound(),
+        n,
+        "recipient public key components must use the same degree"
     );
 
     let base = 1u64
@@ -143,9 +150,7 @@ pub fn generate_rekey<R: RngCore>(
 
         // k1 = b_B * rho + e1 + s_A * B^i
         let b_rho = pk_b.b.mul_ntt(&rho);
-        let k1 = b_rho
-            .add(&e1)
-            .add(&scaled_secret);
+        let k1 = b_rho.add(&e1).add(&scaled_secret);
 
         entries.push(KeySwitchEntry { k0, k1 });
 
@@ -156,15 +161,8 @@ pub fn generate_rekey<R: RngCore>(
     ReEncryptionKey { entries }
 }
 
-pub fn reencrypt(
-    ciphertext: &Ciphertext,
-    rekey: &ReEncryptionKey,
-    base_bits: usize,
-) -> Ciphertext {
-    assert!(
-        base_bits > 0,
-        "base_bits must be greater than zero"
-    );
+pub fn reencrypt(ciphertext: &Ciphertext, rekey: &ReEncryptionKey, base_bits: usize) -> Ciphertext {
+    assert!(base_bits > 0, "base_bits must be greater than zero");
 
     let q = ciphertext.u.modulus();
     let n = ciphertext.u.degree_bound();
@@ -181,10 +179,7 @@ pub fn reencrypt(
         "ciphertext components must use the same degree bound"
     );
 
-    let digits = decompose_poly(
-        &ciphertext.u,
-        base_bits,
-    );
+    let digits = decompose_poly(&ciphertext.u, base_bits);
 
     assert_eq!(
         digits.len(),
@@ -194,24 +189,14 @@ pub fn reencrypt(
 
     let zero_coeffs = vec![0u64; n];
 
-    let mut sum_u_k0 = PolyRq::from_coeffs(
-        &zero_coeffs,
-        n,
-        q,
-    );
+    let mut sum_u_k0 = PolyRq::from_coeffs(&zero_coeffs, n, q);
 
-    let mut sum_u_k1 = PolyRq::from_coeffs(
-        &zero_coeffs,
-        n,
-        q,
-    );
+    let mut sum_u_k1 = PolyRq::from_coeffs(&zero_coeffs, n, q);
 
-    for (digit, entry) in
-        digits.iter().zip(rekey.entries.iter())
-    {
+    for (digit, entry) in digits.iter().zip(rekey.entries.iter()) {
         //println!(
-            //"[REENCRYPT] Processing digit {}",
-            //digit_index
+        //"[REENCRYPT] Processing digit {}",
+        //digit_index
         //);
 
         let product_k0 = digit.mul_ntt(&entry.k0);
@@ -228,4 +213,49 @@ pub fn reencrypt(
         u: u_prime,
         v: v_prime,
     }
+}
+
+/// Rekeys a ciphertext from the source secret key to the recipient key and
+/// then rerandomizes it by adding a fresh encryption of zero under recipient_pk.
+///
+/// This helper assumes a centrally generated rekey key and matching RLWE
+/// parameters. It is a prototype utility, not a distributed PRE protocol.
+pub fn reencrypt_and_rerandomize<R: RngCore>(
+    rng: &mut R,
+    ciphertext: &Ciphertext,
+    rekey: &ReEncryptionKey,
+    recipient_pk: &PublicKey,
+    base_bits: usize,
+) -> Ciphertext {
+    let rekeyed = reencrypt(ciphertext, rekey, base_bits);
+    let n = rekeyed.u.degree_bound();
+    let q = rekeyed.u.modulus();
+
+    assert_eq!(
+        recipient_pk.a.modulus(),
+        q,
+        "recipient public key modulus must match ciphertext modulus"
+    );
+    assert_eq!(
+        recipient_pk.b.modulus(),
+        q,
+        "recipient public key modulus must match ciphertext modulus"
+    );
+    assert_eq!(
+        recipient_pk.a.degree_bound(),
+        n,
+        "recipient public key degree must match ciphertext degree"
+    );
+    assert_eq!(
+        recipient_pk.b.degree_bound(),
+        n,
+        "recipient public key degree must match ciphertext degree"
+    );
+
+    // `encrypt_poly` uses the same Z_17 plaintext encoding as this PRE module.
+    // Adding Enc_B(0) changes the ciphertext randomness without changing its
+    // plaintext, but also adds fresh encryption noise.
+    let zero = PolyRq::from_coeffs(&vec![0u64; n], n, q);
+    let fresh_zero = crate::core::rlwe_pke::encrypt_poly(rng, recipient_pk, &zero, n);
+    rekeyed.add(&fresh_zero)
 }

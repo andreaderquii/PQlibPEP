@@ -18,8 +18,7 @@ fn naive_negacyclic_mul(a: &[u64], b: &[u64], n: usize) -> Vec<u64> {
             let k = i + j;
 
             if k < n {
-                result[k] =
-                    ((result[k] as u128 + product) % Q as u128) as u64;
+                result[k] = ((result[k] as u128 + product) % Q as u128) as u64;
             } else {
                 // X^n = -1 in Z_q[X] / (X^n + 1).
                 let index = k - n;
@@ -117,8 +116,7 @@ fn test_ntt_matches_naive_negacyclic() {
         let naive_result = naive_negacyclic_mul(&a, &b, n);
 
         assert_eq!(
-            ntt_coeffs,
-            naive_result,
+            ntt_coeffs, naive_result,
             "NTT multiplication differs from naive negacyclic multiplication \
              at random test iteration {}",
             iteration
@@ -231,9 +229,7 @@ fn test_round_poly() {
     }
 
     assert!(
-        result[expected.len()..]
-            .iter()
-            .all(|&x| x == 0),
+        result[expected.len()..].iter().all(|&x| x == 0),
         "coefficients beyond the input degree must be zero"
     );
 }
@@ -247,17 +243,9 @@ fn test_rlwr_synthesizer() {
     let q = 998_244_353;
     let p = 469_762_049;
 
-    let x = PolyRq::from_coeffs(
-        &[1, 2, 0, 0],
-        n,
-        q,
-    );
+    let x = PolyRq::from_coeffs(&[1, 2, 0, 0], n, q);
 
-    let y = PolyRq::from_coeffs(
-        &[3, 4, 0, 0],
-        n,
-        q,
-    );
+    let y = PolyRq::from_coeffs(&[3, 4, 0, 0], n, q);
 
     let result = synthesize(&x, &y, p);
 
@@ -275,18 +263,10 @@ fn test_rlwr_synthesizer_known_answer() {
     let p = 469_762_049;
 
     // x = 1 + 2X
-    let x = PolyRq::from_coeffs(
-        &[1, 2, 0, 0],
-        n,
-        q,
-    );
+    let x = PolyRq::from_coeffs(&[1, 2, 0, 0], n, q);
 
     // y = 3 + 4X
-    let y = PolyRq::from_coeffs(
-        &[3, 4, 0, 0],
-        n,
-        q,
-    );
+    let y = PolyRq::from_coeffs(&[3, 4, 0, 0], n, q);
 
     // (1 + 2X)(3 + 4X)
     // = 3 + 10X + 8X^2
@@ -316,18 +296,10 @@ fn test_rlwr_synthesizer_negacyclic_wrap() {
     let p = 469_762_049;
 
     // x = X^3
-    let x = PolyRq::from_coeffs(
-        &[0, 0, 0, 1],
-        n,
-        q,
-    );
+    let x = PolyRq::from_coeffs(&[0, 0, 0, 1], n, q);
 
     // y = X
-    let y = PolyRq::from_coeffs(
-        &[0, 1, 0, 0],
-        n,
-        q,
-    );
+    let y = PolyRq::from_coeffs(&[0, 1, 0, 0], n, q);
 
     // X^3 * X = X^4 = -1 mod (X^4 + 1)
     let result = synthesize(&x, &y, p);
@@ -355,12 +327,7 @@ fn test_rlwr_prf_base() {
 
     let mut rng = StdRng::seed_from_u64(42);
 
-    let base = RlwrPrfBase::sample(
-        &mut rng,
-        n,
-        q,
-        2,
-    );
+    let base = RlwrPrfBase::sample(&mut rng, n, q, 2);
 
     assert_eq!(base.s0.len(), 2);
     assert_eq!(base.s1.len(), 2);
@@ -372,10 +339,7 @@ fn test_rlwr_prf_base() {
         assert_eq!(base.s0[i].degree_bound(), n);
         assert_eq!(base.s1[i].degree_bound(), n);
 
-        assert_ne!(
-            base.s0[i].to_coeffs_vec(),
-            base.s1[i].to_coeffs_vec()
-        );
+        assert_ne!(base.s0[i].to_coeffs_vec(), base.s1[i].to_coeffs_vec());
     }
 
     assert_eq!(
@@ -412,12 +376,7 @@ fn test_rlwr_prf_two_bits() {
 
     let mut rng = StdRng::seed_from_u64(42);
 
-    let base = RlwrPrfBase::sample(
-    &mut rng,
-    n,
-    q1,
-    2,
-    );
+    let base = RlwrPrfBase::sample(&mut rng, n, q1, 2);
 
     let prf = RlwrPrf::new(base, vec![q0, q1]);
 
@@ -468,10 +427,7 @@ fn test_rlwr_prf_eight_bits() {
 
     let base = RlwrPrfBase::sample(&mut rng, n, q3, 8);
 
-    let prf = RlwrPrf::new(
-        base,
-        vec![q0, q1, q2, q3],
-    );
+    let prf = RlwrPrf::new(base, vec![q0, q1, q2, q3]);
 
     let result = prf.evaluate(&[1, 0, 1, 1, 0, 0, 1, 0]);
 
@@ -492,12 +448,7 @@ fn test_rlwr_prf_invalid_input_length() {
 
     let mut rng = StdRng::seed_from_u64(42);
 
-    let base = RlwrPrfBase::sample(
-    &mut rng,
-    n,
-    q1,
-    2,
-    );
+    let base = RlwrPrfBase::sample(&mut rng, n, q1, 2);
 
     let prf = RlwrPrf::new(base, vec![q0, q1]);
 
@@ -540,7 +491,7 @@ fn test_rlwr_prf_insufficient_modulus_chain() {
     let prf = RlwrPrf::new(base, vec![q0, q1]);
 
     // 8 bit => depth 3, ma abbiamo solo q0, q1.
-   prf.evaluate(&[1, 0, 1, 1, 0, 0, 1, 0]);
+    prf.evaluate(&[1, 0, 1, 1, 0, 0, 1, 0]);
 }
 
 #[test]
@@ -560,10 +511,7 @@ fn test_rlwr_prf_deterministic() {
 
     let base = RlwrPrfBase::sample(&mut rng, n, q3, 8);
 
-    let prf = RlwrPrf::new(
-        base,
-        vec![q0, q1, q2, q3],
-    );
+    let prf = RlwrPrf::new(base, vec![q0, q1, q2, q3]);
 
     let input = [1, 0, 1, 1, 0, 0, 1, 0];
 
@@ -590,10 +538,7 @@ fn test_rlwr_prf_different_inputs() {
 
     let base = RlwrPrfBase::sample(&mut rng, n, q3, 8);
 
-    let prf = RlwrPrf::new(
-        base,
-        vec![q0, q1, q2, q3],
-    );
+    let prf = RlwrPrf::new(base, vec![q0, q1, q2, q3]);
 
     let input1 = [0, 0, 0, 0, 0, 0, 0, 0];
     let input2 = [1, 0, 0, 0, 0, 0, 0, 0];
@@ -603,11 +548,7 @@ fn test_rlwr_prf_different_inputs() {
     let output2 = prf.evaluate(&input2);
     let output3 = prf.evaluate(&input3);
 
-    assert!(
-        output1 != output2 ||
-        output1 != output3 ||
-        output2 != output3
-    );
+    assert!(output1 != output2 || output1 != output3 || output2 != output3);
 }
 
 #[test]
@@ -616,18 +557,12 @@ fn test_bytes_to_bits() {
 
     let bits = bytes_to_bits(&[0xA5]);
 
-    assert_eq!(
-        bits,
-        vec![1, 0, 1, 0, 0, 1, 0, 1]
-    );
+    assert_eq!(bits, vec![1, 0, 1, 0, 0, 1, 0, 1]);
 }
 
 #[test]
 fn test_prf_input_position_sensitivity() {
-    use pq_libpep::core::rlwr_prf::{
-        RlwrPrf,
-        RlwrPrfBase,
-    };
+    use pq_libpep::core::rlwr_prf::{RlwrPrf, RlwrPrfBase};
     use rand::rngs::StdRng;
     use rand::SeedableRng;
 
@@ -640,33 +575,17 @@ fn test_prf_input_position_sensitivity() {
 
     let mut rng = StdRng::seed_from_u64(42);
 
-    let base = RlwrPrfBase::sample(
-        &mut rng,
-        n,
-        q3,
-        8,
-    );
+    let base = RlwrPrfBase::sample(&mut rng, n, q3, 8);
 
-    let prf = RlwrPrf::new(
-        base,
-        vec![q0, q1, q2, q3],
-    );
+    let prf = RlwrPrf::new(base, vec![q0, q1, q2, q3]);
 
-    let p0 = prf.evaluate(&[
-        0, 0, 0, 0, 0, 0, 0, 0
-    ]);
+    let p0 = prf.evaluate(&[0, 0, 0, 0, 0, 0, 0, 0]);
 
-    let p1 = prf.evaluate(&[
-        1, 0, 0, 0, 0, 0, 0, 0
-    ]);
+    let p1 = prf.evaluate(&[1, 0, 0, 0, 0, 0, 0, 0]);
 
-    let p2 = prf.evaluate(&[
-        0, 1, 0, 0, 0, 0, 0, 0
-    ]);
+    let p2 = prf.evaluate(&[0, 1, 0, 0, 0, 0, 0, 0]);
 
-    let p3 = prf.evaluate(&[
-        0, 0, 0, 0, 0, 0, 0, 1
-    ]);
+    let p3 = prf.evaluate(&[0, 0, 0, 0, 0, 0, 0, 1]);
 
     assert_ne!(p0, p1);
     assert_ne!(p0, p2);

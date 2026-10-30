@@ -20,9 +20,15 @@ rand_core = "0.6"
 rand = "0.8"
 sha3 = "0.10"
 num-bigint = "0.4"
+tfhe = { version = "=1.6.2", optional = true }
+serde = { version = "1", features = ["derive"], optional = true }
+bincode = { version = "1.3.3", optional = true }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"], optional = true }
+rustls-pemfile = { version = "2", optional = true }
 
 concrete-ntt = "0.2.0"
 nc-polynomial = "0.2.0"
+rayon = "1.12.0"
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
@@ -30,3 +36,22 @@ criterion = { version = "0.5", features = ["html_reports"] }
 [lints.rust]
 unsafe_code = "deny"
 
+[features]
+fast-prf-tfhe = ["dep:tfhe"]
+# Active code uses core_crypto only; avoid compiling unused integer/shortint APIs.
+fast-prf-tfhe-private-input = ["fast-prf-tfhe"]
+
+pep-role-lab = ["fast-prf-tfhe-private-input", "dep:serde", "dep:bincode", "dep:rustls", "dep:rustls-pemfile"]
+
+# Historical polynomial domain transforms; not secure pseudonymization.
+experimental-linear-reshuffle = []
+
+[[example]]
+name = "hybrid_pep_transaction_demo"
+required-features = ["fast-prf-tfhe-private-input"]
+
+# Three runtime roles with trusted offline provisioning and mutual TLS.
+[[bin]]
+name = "pqpep-lab"
+path = "src/bin/pqpep_lab.rs"
+required-features = ["pep-role-lab"]

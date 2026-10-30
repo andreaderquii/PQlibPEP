@@ -1,14 +1,12 @@
 use crate::algebra::ring::PolyRq;
+use crate::parameters::bgv_prototype as parameter_profile;
 use crate::core::rlwe_pke::Ciphertext;
 
 use rand_core::RngCore;
 
-use crate::algebra::sampling::{
-    sample_small_poly,
-    sample_uniform_poly,
-};
+use crate::algebra::sampling::{sample_small_poly, sample_uniform_poly};
 
-const PLAINTEXT_MODULUS: u64 = 17;
+const PLAINTEXT_MODULUS: u64 = parameter_profile::PLAINTEXT_MODULUS;
 
 pub struct BgvSecretKey {
     pub s: PolyRq,
@@ -39,7 +37,6 @@ pub struct BgvRelinearizationKey {
     pub base_bits: usize,
 }
 
-
 /// Prototype BGV modulus chain.
 ///
 /// Each level uses a ciphertext modulus q_i such that:
@@ -57,10 +54,7 @@ pub struct BgvModulusChain {
 
 impl BgvModulusChain {
     pub fn new(moduli: Vec<u64>) -> Self {
-        assert!(
-            !moduli.is_empty(),
-            "BGV modulus chain must not be empty"
-        );
+        assert!(!moduli.is_empty(), "BGV modulus chain must not be empty");
 
         for q in &moduli {
             assert!(*q >= 2, "ciphertext moduli must be >= 2");
@@ -93,41 +87,31 @@ impl BgvModulusChain {
         Self { moduli }
     }
 
-  pub fn default_chain() -> Self {
-    // Five levels support four consecutive ciphertext-ciphertext
-    // multiplications.
-    //
-    // q0 -> q1 uses D = 256
-    // q1 -> q2 uses D = 256
-    // q2 -> q3 uses D = 137
-    // q3 -> q4 uses D = 528
-    //
-    // Every switching factor is 1 (mod 17), so every q_i is also
-    // 1 (mod 17).
-    //
-    // The moduli are chosen for this correctness/noise prototype;
-    // they are not production cryptographic parameters.
+    pub fn default_chain() -> Self {
+        // Five levels support four consecutive ciphertext-ciphertext
+        // multiplications.
+        //
+        // q0 -> q1 uses D = 256
+        // q1 -> q2 uses D = 256
+        // q2 -> q3 uses D = 137
+        // q3 -> q4 uses D = 528
+        //
+        // Every switching factor is 1 (mod 17), so every q_i is also
+        // 1 (mod 17).
+        //
+        // The moduli are chosen for this correctness/noise prototype;
+        // they are not production cryptographic parameters.
 
-    const Q4: u64 = 3_500_000_002;
+        let q4 = parameter_profile::FINAL_MODULUS;
+        let [d1, d2, d3, d4] = parameter_profile::DROP_FACTORS;
 
-    const D1: u64 = 256;
-    const D2: u64 = 256;
-    const D3: u64 = 137;
-    const D4: u64 = 528;
+        let q3 = q4 * d4;
+        let q2 = q3 * d3;
+        let q1 = q2 * d2;
+        let q0 = q1 * d1;
 
-    let q3 = Q4 * D4;
-    let q2 = q3 * D3;
-    let q1 = q2 * D2;
-    let q0 = q1 * D1;
-
-    Self::new(vec![
-        q0,
-        q1,
-        q2,
-        q3,
-        Q4,
-    ])
-}
+        Self::new(vec![q0, q1, q2, q3, q4])
+    }
 
     pub fn modulus(&self, level: usize) -> u64 {
         *self
@@ -158,7 +142,6 @@ impl Default for BgvModulusChain {
 pub struct BgvRelinearizationKeyChain {
     pub keys: Vec<BgvRelinearizationKey>,
 }
-
 
 pub struct RlweBgvHe;
 
@@ -208,14 +191,9 @@ impl RlweBgvHe {
     }
 
     /// Add two ciphertexts at the same level.
-    pub fn add(
-        &self,
-        lhs: &BgvCiphertext,
-        rhs: &BgvCiphertext,
-    ) -> BgvCiphertext {
+    pub fn add(&self, lhs: &BgvCiphertext, rhs: &BgvCiphertext) -> BgvCiphertext {
         assert_eq!(
-            lhs.level,
-            rhs.level,
+            lhs.level, rhs.level,
             "ciphertexts must be at the same level"
         );
 
@@ -231,11 +209,7 @@ impl RlweBgvHe {
     }
 
     /// Add an unencrypted plaintext polynomial without consuming a level.
-    pub fn add_plaintext(
-        &self,
-        ciphertext: &BgvCiphertext,
-        plaintext: &PolyRq,
-    ) -> BgvCiphertext {
+    pub fn add_plaintext(&self, ciphertext: &BgvCiphertext, plaintext: &PolyRq) -> BgvCiphertext {
         assert_eq!(
             plaintext.modulus(),
             PLAINTEXT_MODULUS,
@@ -263,11 +237,7 @@ impl RlweBgvHe {
     /// Multiply a ciphertext by an unencrypted plaintext polynomial.
     ///
     /// This does not consume a ciphertext-ciphertext multiplication level.
-    pub fn mul_plaintext(
-        &self,
-        ciphertext: &BgvCiphertext,
-        plaintext: &PolyRq,
-    ) -> BgvCiphertext {
+    pub fn mul_plaintext(&self, ciphertext: &BgvCiphertext, plaintext: &PolyRq) -> BgvCiphertext {
         assert_eq!(
             plaintext.modulus(),
             PLAINTEXT_MODULUS,
@@ -371,8 +341,7 @@ impl RlweBgvHe {
         chain: &BgvModulusChain,
     ) -> BgvCiphertext {
         assert_eq!(
-            lhs.level,
-            rhs.level,
+            lhs.level, rhs.level,
             "ciphertexts must be at the same level"
         );
 
@@ -417,16 +386,10 @@ impl RlweBgvHe {
         let mut plaintext_coeffs = Vec::with_capacity(n);
         for &coefficient in phase.coefficients().iter().take(n) {
             let centered = centered_i128(coefficient, q);
-            plaintext_coeffs.push(
-                centered.rem_euclid(PLAINTEXT_MODULUS as i128) as u64
-            );
+            plaintext_coeffs.push(centered.rem_euclid(PLAINTEXT_MODULUS as i128) as u64);
         }
 
-        PolyRq::from_coeffs(
-            &plaintext_coeffs,
-            n,
-            PLAINTEXT_MODULUS,
-        )
+        PolyRq::from_coeffs(&plaintext_coeffs, n, PLAINTEXT_MODULUS)
     }
 }
 
@@ -489,11 +452,7 @@ fn centered_i128(value: u64, modulus: u64) -> i128 {
     }
 }
 
-fn bgv_switch_coefficient(
-    coefficient: u64,
-    q: u64,
-    q_next: u64,
-) -> u64 {
+fn bgv_switch_coefficient(coefficient: u64, q: u64, q_next: u64) -> u64 {
     assert_eq!(q % q_next, 0);
 
     let d = q / q_next;
@@ -506,11 +465,8 @@ fn bgv_switch_coefficient(
     // Choose k such that:
     //   centered + 17*k == 0 (mod d)
     // while keeping k balanced around zero.
-    let mut k = (
-        (((-centered).rem_euclid(d as i128) as u128)
-            * inverse_p as u128)
-            % d as u128
-    ) as i128;
+    let mut k =
+        ((((-centered).rem_euclid(d as i128) as u128) * inverse_p as u128) % d as u128) as i128;
 
     if k > (d / 2) as i128 {
         k -= d as i128;
@@ -522,10 +478,7 @@ fn bgv_switch_coefficient(
     (corrected / d as i128).rem_euclid(q_next as i128) as u64
 }
 
-fn bgv_modswitch_poly(
-    polynomial: &PolyRq,
-    q_next: u64,
-) -> PolyRq {
+fn bgv_modswitch_poly(polynomial: &PolyRq, q_next: u64) -> PolyRq {
     let q = polynomial.modulus();
     let n = polynomial.degree_bound();
 
@@ -539,10 +492,7 @@ fn bgv_modswitch_poly(
     PolyRq::from_coeffs(&coefficients, n, q_next)
 }
 
-fn reduce_secret_to_modulus(
-    secret: &BgvSecretKey,
-    modulus: u64,
-) -> BgvSecretKey {
+fn reduce_secret_to_modulus(secret: &BgvSecretKey, modulus: u64) -> BgvSecretKey {
     let source_modulus = secret.s.modulus();
     let n = secret.s.degree_bound();
 
@@ -552,8 +502,7 @@ fn reduce_secret_to_modulus(
         .iter()
         .take(n)
         .map(|&coefficient| {
-            centered_i128(coefficient, source_modulus)
-                .rem_euclid(modulus as i128) as u64
+            centered_i128(coefficient, source_modulus).rem_euclid(modulus as i128) as u64
         })
         .collect::<Vec<_>>();
 
@@ -574,19 +523,16 @@ fn encrypt_negacyclic<R: RngCore>(
     let e1 = sample_small_poly(rng, n, q);
     let e2 = sample_small_poly(rng, n, q);
 
-    let u = pk
-        .a
-        .mul_negacyclic(&r)
-        .add(&e1.mul_scalar(PLAINTEXT_MODULUS));
+    let u =
+        pk.a.mul_negacyclic(&r)
+            .add(&e1.mul_scalar(PLAINTEXT_MODULUS));
 
-    let message_q =
-        PolyRq::from_coeffs(message.coefficients(), n, q);
+    let message_q = PolyRq::from_coeffs(message.coefficients(), n, q);
 
-    let v = pk
-        .b
-        .mul_negacyclic(&r)
-        .add(&e2.mul_scalar(PLAINTEXT_MODULUS))
-        .add(&message_q);
+    let v =
+        pk.b.mul_negacyclic(&r)
+            .add(&e2.mul_scalar(PLAINTEXT_MODULUS))
+            .add(&message_q);
 
     BgvCiphertext {
         ciphertext: Ciphertext { u, v },
@@ -606,26 +552,15 @@ fn relin_key_negacyclic<R: RngCore>(
 
     let q = secret.s.modulus();
     let base = 1u64 << base_bits;
-    let secret_squared =
-        secret.s.mul_negacyclic(&secret.s);
+    let secret_squared = secret.s.mul_negacyclic(&secret.s);
 
     let mut entries = Vec::new();
     let mut gadget = 1u64;
 
     while gadget < q {
-        let a =
-            sample_uniform_poly(
-                rng,
-                secret.s.degree_bound(),
-                q,
-            );
+        let a = sample_uniform_poly(rng, secret.s.degree_bound(), q);
 
-        let e =
-            sample_small_poly(
-                rng,
-                secret.s.degree_bound(),
-                q,
-            );
+        let e = sample_small_poly(rng, secret.s.degree_bound(), q);
 
         let k1 = a
             .mul_negacyclic(&secret.s)
@@ -641,10 +576,7 @@ fn relin_key_negacyclic<R: RngCore>(
         gadget *= base;
     }
 
-    BgvRelinearizationKey {
-        entries,
-        base_bits,
-    }
+    BgvRelinearizationKey { entries, base_bits }
 }
 
 fn relinearize_negacyclic(
@@ -652,11 +584,7 @@ fn relinearize_negacyclic(
     key: &BgvRelinearizationKey,
     level: usize,
 ) -> BgvCiphertext {
-    let digits =
-        crate::core::rlwe_pre::decompose_poly(
-            &product.c2,
-            key.base_bits,
-        );
+    let digits = crate::core::rlwe_pre::decompose_poly(&product.c2, key.base_bits);
 
     assert_eq!(
         digits.len(),
@@ -688,12 +616,7 @@ fn mul_raw_negacyclic(
         .ciphertext
         .v
         .mul_negacyclic(&rhs.ciphertext.u)
-        .add(
-            &lhs
-                .ciphertext
-                .u
-                .mul_negacyclic(&rhs.ciphertext.v),
-        )
+        .add(&lhs.ciphertext.u.mul_negacyclic(&rhs.ciphertext.v))
         .neg();
 
     let c2 = lhs.ciphertext.u.mul_negacyclic(&rhs.ciphertext.u);

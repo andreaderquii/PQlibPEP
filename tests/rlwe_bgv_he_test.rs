@@ -1,12 +1,7 @@
-
 use rand::thread_rng;
 
 use pq_libpep::algebra::ring::PolyRq;
-use pq_libpep::core::rlwe_bgv_he::{
-    BgvCiphertext,
-    BgvModulusChain,
-    RlweBgvHe,
-};
+use pq_libpep::core::rlwe_bgv_he::{BgvCiphertext, BgvModulusChain, RlweBgvHe};
 
 const N: usize = 256;
 const P: u64 = 17;
@@ -20,21 +15,20 @@ fn constant_poly(value: u64) -> PolyRq {
 fn reduce_secret_coeffs(sk: &pq_libpep::core::rlwe_bgv_he::BgvSecretKey, q: u64) -> PolyRq {
     let source_q = sk.s.modulus();
 
-    let coeffs = sk
-        .s
-        .coefficients()
-        .iter()
-        .take(N)
-        .map(|&c| {
-            let centered: i128 = if c > source_q / 2 {
-                c as i128 - source_q as i128
-            } else {
-                c as i128
-            };
+    let coeffs =
+        sk.s.coefficients()
+            .iter()
+            .take(N)
+            .map(|&c| {
+                let centered: i128 = if c > source_q / 2 {
+                    c as i128 - source_q as i128
+                } else {
+                    c as i128
+                };
 
-            centered.rem_euclid(q as i128) as u64
-        })
-        .collect::<Vec<_>>();
+                centered.rem_euclid(q as i128) as u64
+            })
+            .collect::<Vec<_>>();
 
     PolyRq::from_coeffs(&coeffs, N, q)
 }
@@ -52,12 +46,7 @@ fn inspect(
     let phase = ciphertext
         .ciphertext
         .v
-        .sub(
-            &ciphertext
-                .ciphertext
-                .u
-                .mul_negacyclic(&sk_level),
-        );
+        .sub(&ciphertext.ciphertext.u.mul_negacyclic(&sk_level));
 
     let mut max_abs_phase: i128 = 0;
 
@@ -71,9 +60,7 @@ fn inspect(
         max_abs_phase = max_abs_phase.max(centered.abs());
     }
 
-    let decoded = he
-        .decrypt_leveled(sk, ciphertext, chain, N)
-        .to_coeffs_vec()[0];
+    let decoded = he.decrypt_leveled(sk, ciphertext, chain, N).to_coeffs_vec()[0];
 
     let limit = q / 2;
     let margin = limit.saturating_sub(max_abs_phase as u64);
@@ -93,8 +80,7 @@ fn inspect(
     );
 
     assert_eq!(
-        decoded,
-        expected,
+        decoded, expected,
         "leveled BGV decoding failed at level {}",
         ciphertext.level
     );
@@ -128,20 +114,11 @@ fn test_bgv_four_multiplication_chain() {
     println!();
     println!("Generating leveled BGV keys...");
 
-    let keygen = he.keygen_leveled(
-        &mut rng,
-        N,
-        &chain,
-    );
+    let keygen = he.keygen_leveled(&mut rng, N, &chain);
 
     println!("Generating relinearization key chain...");
 
-    let relin_keys = he.generate_relinearization_key_chain(
-        &mut rng,
-        &keygen.sk,
-        &chain,
-        4,
-    );
+    let relin_keys = he.generate_relinearization_key_chain(&mut rng, &keygen.sk, &chain, 4);
 
     assert_eq!(
         relin_keys.keys.len(),
@@ -149,28 +126,14 @@ fn test_bgv_four_multiplication_chain() {
         "four multiplication steps require four relinearization-key levels"
     );
 
-    println!(
-        "relinearization-key levels = {}",
-        relin_keys.keys.len()
-    );
+    println!("relinearization-key levels = {}", relin_keys.keys.len());
 
     println!();
     println!("Encrypting x = 13...");
 
-    let mut current = he.encrypt_leveled(
-        &mut rng,
-        &keygen.pk,
-        &constant_poly(13),
-        N,
-    );
+    let mut current = he.encrypt_leveled(&mut rng, &keygen.pk, &constant_poly(13), N);
 
-    inspect(
-        &he,
-        &keygen.sk,
-        &chain,
-        &current,
-        13,
-    );
+    inspect(&he, &keygen.sk, &chain, &current, 13);
 
     let expected = [16u64, 1u64, 1u64, 1u64];
 
@@ -182,12 +145,7 @@ fn test_bgv_four_multiplication_chain() {
             2usize.pow((step + 1) as u32)
         );
 
-        current = he.mul_ciphertext_leveled(
-            &current,
-            &current,
-            &relin_keys,
-            &chain,
-        );
+        current = he.mul_ciphertext_leveled(&current, &current, &relin_keys, &chain);
 
         assert_eq!(
             current.level,
@@ -195,13 +153,7 @@ fn test_bgv_four_multiplication_chain() {
             "ciphertext level did not advance correctly"
         );
 
-        inspect(
-            &he,
-            &keygen.sk,
-            &chain,
-            &current,
-            expected_value,
-        );
+        inspect(&he, &keygen.sk, &chain, &current, expected_value);
     }
 
     println!();

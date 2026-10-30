@@ -1,0 +1,59 @@
+[START] 2026-10-30T16:44:31.8390769+01:00
+[LOG] Persistent live log: C:\Users\andre\AppData\Local\PQlibPEP\benchmarks\prf-scaling-32-20261030-164431-50bd5e1c\pep_prf_scaling_32_output.txt
+[RAW] stdout/stderr retained in: C:\Users\andre\AppData\Local\PQlibPEP\benchmarks\prf-scaling-32-20261030-164431-50bd5e1c
+[BENCHMARK] Paper profile: 32 bytes ONLY; 10 measured samples and one warm-up.
+[BENCHMARK] One setup and fixed input shared across runs. Run without other benchmarks.
+[COMMAND] C:\Users\andre\.cargo\bin\cargo.exe test --locked --release --features fast-prf-tfhe-private-input --test pep_prf_scaling_32_benchmark prf_output_length_scaling_32 -- --exact --ignored --nocapture --test-threads=1
+warning: function `high_digit_coefficients_for_fixed_lhs` is never used
+    --> src\lib\core\bpr12_oblivious.rs:2073:4
+     |
+2073 | fn high_digit_coefficients_for_fixed_lhs(a_value: usize, lagrange: &[[u64; 17]; 17]) -> [u64; 17] {
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `encrypted_radix17_digit_product_from_precomputed_tables` is never used
+    --> src\lib\core\bpr12_oblivious.rs:2624:4
+     |
+2624 | fn encrypted_radix17_digit_product_from_precomputed_tables(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `pq-libpep` (lib) generated 2 warnings
+   Compiling pq-libpep v0.1.0 (C:\Users\andre\OneDrive\Desktop\informatica\magistrale 1\RU2\internship\PQlibPEP\PQlibPEP)
+
+running 1 test
+test prf_output_length_scaling_32 ... 
+=== TFHE PRIVATE-INPUT PRF: 32-BYTE REPEAT ===
+Purpose: measure how PRF evaluation cost and envelope size scale with output length.
+Runs: 10 measured evaluations per length, plus one untimed warm-up per length.
+Security: functional/performance experiment only; it does not validate deployment security.
+[START] Generate PRF key and TFHE evaluation setup (one setup shared across lengths)
+    Finished `release` profile [optimized] target(s) in 1.24s
+     Running tests\pep_prf_scaling_32_benchmark.rs (target\release\deps\pep_prf_scaling_32_benchmark-f21f9e5632aa2e9c.exe)
+[TIME] PRF key + TFHE setup: 50.422500s
+[INPUT] Fixed input length: 58 bytes
+
+[CASE] output_bytes=32; symbols=52; input_envelope_bytes=856180
+[WARMUP] 32-byte PRF output (excluded from statistics)
+[SAMPLE] PRF eval 32 bytes run 1/10: 47.614073s
+[SAMPLE] PRF eval 32 bytes run 2/10: 47.557562s
+[SAMPLE] PRF eval 32 bytes run 3/10: 54.883907s
+[SAMPLE] PRF eval 32 bytes run 4/10: 53.716855s
+[SAMPLE] PRF eval 32 bytes run 5/10: 47.712618s
+[SAMPLE] PRF eval 32 bytes run 6/10: 47.772387s
+[SAMPLE] PRF eval 32 bytes run 7/10: 47.812086s
+[SAMPLE] PRF eval 32 bytes run 8/10: 47.921387s
+[SAMPLE] PRF eval 32 bytes run 9/10: 47.866540s
+[SAMPLE] PRF eval 32 bytes run 10/10: 49.311497s
+[STATS] PRF evaluation, 32 output bytes: n=10, mean=49.216891s, median=47.839313s, min=47.557562s, max=54.883907s, sd=2.739034s
+[SIZE] output_envelope_bytes=27268644
+[PASS] All 52 output symbols match the clear PRF reference.
+
+LIMIT: output-length scaling only; setup is shared, and this is not a full PEP transaction benchmark.
+LIMIT: measured samples reuse one key/setup and one fixed input; no security level is established.
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 591.50s
+
+[EXIT] Child process exit code: 0
+[PASS] Complete results: 10 measured samples, 1 summary, Rust test passed.

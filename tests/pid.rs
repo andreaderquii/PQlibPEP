@@ -1,15 +1,7 @@
-use pq_libpep::core::params::{
-    prf_modulus_chain,
-    Q0,
-    Q_BASE,
-    RING_DIMENSION,
-};
+use pq_libpep::core::params::{prf_modulus_chain, Q0, Q_BASE, RING_DIMENSION};
 use pq_libpep::core::pid::derive_pid;
 use pq_libpep::core::pseudonym::pseudonymize_32;
-use pq_libpep::core::rlwr_prf::{
-    RlwrPrf,
-    RlwrPrfBase,
-};
+use pq_libpep::core::rlwr_prf::{RlwrPrf, RlwrPrfBase};
 
 use rand::rngs::StdRng;
 use rand::SeedableRng;
@@ -21,17 +13,9 @@ fn test_prf() -> RlwrPrf {
 
     let highest_modulus = *chain.last().unwrap();
 
-    let base = RlwrPrfBase::sample(
-        &mut rng,
-        RING_DIMENSION,
-        highest_modulus,
-        256
-    );
+    let base = RlwrPrfBase::sample(&mut rng, RING_DIMENSION, highest_modulus, 256);
 
-    RlwrPrf::new(
-        base,
-        chain,
-    )
+    RlwrPrf::new(base, chain)
 }
 
 #[test]
@@ -50,9 +34,7 @@ fn test_modulus_chain() {
     assert_eq!(chain[7], 6_975_757_441);
     assert_eq!(chain[8], 118_587_876_497);
 
-    assert!(
-        chain.windows(2).all(|w| w[0] < w[1])
-    );
+    assert!(chain.windows(2).all(|w| w[0] < w[1]));
 
     assert_eq!(chain[0], Q0);
     assert_eq!(Q_BASE, 17);
@@ -78,11 +60,9 @@ fn test_same_id_same_prf_same_pid() {
 
     let id = [0x42u8; 32];
 
-    let pid1 =
-        derive_pid(&pseudonymize_32(&prf, &id));
+    let pid1 = derive_pid(&pseudonymize_32(&prf, &id));
 
-    let pid2 =
-        derive_pid(&pseudonymize_32(&prf, &id));
+    let pid2 = derive_pid(&pseudonymize_32(&prf, &id));
 
     assert_eq!(pid1, pid2);
 }
@@ -94,11 +74,9 @@ fn test_different_ids_produce_different_pids() {
     let id1 = [0x42u8; 32];
     let id2 = [0x43u8; 32];
 
-    let pid1 =
-        derive_pid(&pseudonymize_32(&prf, &id1));
+    let pid1 = derive_pid(&pseudonymize_32(&prf, &id1));
 
-    let pid2 =
-        derive_pid(&pseudonymize_32(&prf, &id2));
+    let pid2 = derive_pid(&pseudonymize_32(&prf, &id2));
 
     assert_ne!(pid1, pid2);
 }
@@ -112,20 +90,11 @@ fn test_complete_id_to_pid_pipeline() {
     let poly = pseudonymize_32(&prf, &id);
     let pid = derive_pid(&poly);
 
-    assert_eq!(
-        poly.degree_bound(),
-        RING_DIMENSION
-    );
+    assert_eq!(poly.degree_bound(), RING_DIMENSION);
 
-    assert_eq!(
-        poly.modulus(),
-        Q0
-    );
+    assert_eq!(poly.modulus(), Q0);
 
-    assert_eq!(
-        pid.len(),
-        64
-    );
+    assert_eq!(pid.len(), 64);
 }
 
 #[test]

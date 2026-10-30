@@ -1,0 +1,91 @@
+[START] 2026-10-30T15:44:01.1645937+01:00
+[LOG] Persistent live log: C:\Users\andre\AppData\Local\PQlibPEP\benchmarks\prf-scaling-20261030-154401-64954c53\pep_prf_scaling_output.txt
+[RAW] stdout/stderr retained in: C:\Users\andre\AppData\Local\PQlibPEP\benchmarks\prf-scaling-20261030-154401-64954c53
+[BENCHMARK] Paper profile: 16/32/64 bytes; 10 measured samples and one warm-up per size.
+[BENCHMARK] One setup and fixed input shared across cases. Run without other benchmarks.
+[COMMAND] C:\Users\andre\.cargo\bin\cargo.exe test --locked --release --features fast-prf-tfhe-private-input --test pep_prf_scaling_benchmark prf_output_length_scaling -- --exact --ignored --nocapture --test-threads=1
+   Compiling pq-libpep v0.1.0 (C:\Users\andre\OneDrive\Desktop\informatica\magistrale 1\RU2\internship\PQlibPEP\PQlibPEP)
+warning: function `high_digit_coefficients_for_fixed_lhs` is never used
+    --> src\lib\core\bpr12_oblivious.rs:2073:4
+     |
+2073 | fn high_digit_coefficients_for_fixed_lhs(a_value: usize, lagrange: &[[u64; 17]; 17]) -> [u64; 17] {
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `encrypted_radix17_digit_product_from_precomputed_tables` is never used
+    --> src\lib\core\bpr12_oblivious.rs:2624:4
+     |
+2624 | fn encrypted_radix17_digit_product_from_precomputed_tables(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `pq-libpep` (lib) generated 2 warnings
+    Finished `release` profile [optimized] target(s) in 27.67s
+     Running tests\pep_prf_scaling_benchmark.rs (target\release\deps\pep_prf_scaling_benchmark-a2e88b9fd1f48177.exe)
+
+running 1 test
+test prf_output_length_scaling ... 
+=== TFHE PRIVATE-INPUT PRF OUTPUT-LENGTH SCALING ===
+Purpose: measure how PRF evaluation cost and envelope size scale with output length.
+Runs: 10 measured evaluations per length, plus one untimed warm-up per length.
+Security: functional/performance experiment only; it does not validate deployment security.
+[START] Generate PRF key and TFHE evaluation setup (one setup shared across lengths)
+[TIME] PRF key + TFHE setup: 53.958989s
+[INPUT] Fixed input length: 58 bytes
+
+[CASE] output_bytes=16; symbols=26; input_envelope_bytes=428090
+[WARMUP] 16-byte PRF output (excluded from statistics)
+[SAMPLE] PRF eval 16 bytes run 1/10: 28.973115s
+[SAMPLE] PRF eval 16 bytes run 2/10: 28.827650s
+[SAMPLE] PRF eval 16 bytes run 3/10: 29.373847s
+[SAMPLE] PRF eval 16 bytes run 4/10: 28.887618s
+[SAMPLE] PRF eval 16 bytes run 5/10: 38.886810s
+[SAMPLE] PRF eval 16 bytes run 6/10: 94.202130s
+[SAMPLE] PRF eval 16 bytes run 7/10: 94.615875s
+[SAMPLE] PRF eval 16 bytes run 8/10: 94.619146s
+[SAMPLE] PRF eval 16 bytes run 9/10: 94.678532s
+[SAMPLE] PRF eval 16 bytes run 10/10: 94.533434s
+[STATS] PRF evaluation, 16 output bytes: n=10, mean=62.759816s, median=66.544470s, min=28.827650s, max=94.678532s, sd=33.618140s
+[SIZE] output_envelope_bytes=13634322
+[PASS] All 26 output symbols match the clear PRF reference.
+
+[CASE] output_bytes=32; symbols=52; input_envelope_bytes=856180
+[WARMUP] 32-byte PRF output (excluded from statistics)
+[SAMPLE] PRF eval 32 bytes run 1/10: 189.956479s
+[SAMPLE] PRF eval 32 bytes run 2/10: 189.551307s
+[SAMPLE] PRF eval 32 bytes run 3/10: 188.932450s
+[SAMPLE] PRF eval 32 bytes run 4/10: 53.687486s
+[SAMPLE] PRF eval 32 bytes run 5/10: 47.243287s
+[SAMPLE] PRF eval 32 bytes run 6/10: 47.498462s
+[SAMPLE] PRF eval 32 bytes run 7/10: 47.421939s
+[SAMPLE] PRF eval 32 bytes run 8/10: 47.488484s
+[SAMPLE] PRF eval 32 bytes run 9/10: 47.355363s
+[SAMPLE] PRF eval 32 bytes run 10/10: 47.536867s
+[STATS] PRF evaluation, 32 output bytes: n=10, mean=90.667212s, median=47.517664s, min=47.243287s, max=189.956479s, sd=68.215229s
+[SIZE] output_envelope_bytes=27268644
+[PASS] All 52 output symbols match the clear PRF reference.
+
+[CASE] output_bytes=64; symbols=103; input_envelope_bytes=1695895
+[WARMUP] 64-byte PRF output (excluded from statistics)
+[SAMPLE] PRF eval 64 bytes run 1/10: 93.753294s
+[SAMPLE] PRF eval 64 bytes run 2/10: 93.947703s
+[SAMPLE] PRF eval 64 bytes run 3/10: 93.899685s
+[SAMPLE] PRF eval 64 bytes run 4/10: 93.806751s
+[SAMPLE] PRF eval 64 bytes run 5/10: 94.335528s
+[SAMPLE] PRF eval 64 bytes run 6/10: 94.237351s
+[SAMPLE] PRF eval 64 bytes run 7/10: 94.245727s
+[SAMPLE] PRF eval 64 bytes run 8/10: 94.713290s
+[SAMPLE] PRF eval 64 bytes run 9/10: 94.679751s
+[SAMPLE] PRF eval 64 bytes run 10/10: 94.188010s
+[STATS] PRF evaluation, 64 output bytes: n=10, mean=94.180709s, median=94.212681s, min=93.753294s, max=94.713290s, sd=0.336640s
+[SIZE] output_envelope_bytes=54012891
+[PASS] All 103 output symbols match the clear PRF reference.
+
+LIMIT: output-length scaling only; setup is shared, and this is not a full PEP transaction benchmark.
+LIMIT: measured samples reuse one key/setup and one fixed input; no security level is established.
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2843.88s
+
+[EXIT] Child process exit code: 0
+[PASS] Complete results: 30 measured samples, 3 summaries, Rust test passed.

@@ -1,0 +1,45 @@
+APPLICAZIONE DELLA PATCH ALLO ZIP PQlibPEP(5)
+
+Estrarre il contenuto dello ZIP patch nella cartella che contiene Cargo.toml.
+Sostituire i file esistenti e aggiungere quelli nuovi mantenendo i percorsi.
+Non basta copiare soltanto pep_roles.rs: Cargo.toml/Cargo.lock e le modifiche
+ai moduli serializzati sono necessari. Il vecchio pep_api_test.rs non cambia.
+
+FILE ESISTENTI DA SOSTITUIRE
+.gitignore
+Cargo.toml
+Cargo.lock
+src/lib/core/mod.rs
+src/lib/core/fast_lwr_prf.rs
+src/lib/core/fast_lwr_prf_pep_ks128_e16_pipeline.rs
+src/lib/core/fast_lwr_prf_pep_hybrid_pipeline.rs
+src/lib/core/pep_context.rs
+src/lib/core/pep.rs
+src/lib/core/rlwe_pre.rs
+
+FILE NUOVI
+.dockerignore
+src/lib/core/pep_roles.rs
+src/bin/pqpep_lab.rs
+tests/pep_role_separation_test.rs
+lab/Dockerfile
+lab/compose.yaml
+lab/make-certs.sh
+lab/smoke_local.py
+lab/ROLE_SEPARATION_IT.md
+lab/FILES_TO_REPLACE_IT.txt
+lab/VALIDATION.txt
+
+PRIMO CONTROLLO DA POWERSHELL, DALLA RADICE
+cargo check --locked --features pep-role-lab --bin pqpep-lab --test pep_role_separation_test
+cargo test --locked --release --features pep-role-lab --test pep_role_separation_test -- --nocapture --test-threads=1
+
+La guida lab/ROLE_SEPARATION_IT.md spiega Docker, i tre IP distinti, le chiavi
+e il setup fidato offline. La separazione dei processi è implementata: il
+transcryptor conosce la chiave PRF in chiaro e non riceve direttamente i
+segreti di decifratura di A/B. Il dealer offline li vede tutti durante il
+setup, quindi non è una generazione distribuita delle chiavi TFHE.
+
+Il nuovo modulo mantiene PRF ed RLWE/PRE esistenti e i parametri centrali.
+Non risolve la collusione del key switching né introduce RS2. Non sono stati
+eseguiti benchmark ripetuti o stimati livelli di sicurezza da questi test.

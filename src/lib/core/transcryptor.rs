@@ -1,8 +1,4 @@
-use crate::core::oblivious_prf::{
-    EncryptedInput,
-    EncryptedPrfOutput,
-    ObliviousPrf,
-};
+use crate::core::oblivious_prf::{EncryptedInput, EncryptedPrfOutput, ObliviousPrf};
 
 pub struct Transcryptor {
     oblivious_prf: ObliviousPrf,
@@ -13,10 +9,7 @@ impl Transcryptor {
         Self { oblivious_prf }
     }
 
-    pub fn evaluate_prf(
-        &self,
-        input: &EncryptedInput,
-    ) -> EncryptedPrfOutput {
+    pub fn evaluate_prf(&self, input: &EncryptedInput) -> EncryptedPrfOutput {
         self.oblivious_prf.evaluate(input)
     }
 }

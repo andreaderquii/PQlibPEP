@@ -1,4 +1,3 @@
-
 use concrete_ntt::prime64::Plan;
 // ============================================================================
 // 2. Concrete-NTT Wrapper (High-Performance Library Integration)
@@ -41,18 +40,8 @@ impl ConcreteNttContext {
     }
 }
 
-
-
-
-
-
-
-
-
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Custom NTT Implementation (Reference Implementation)
-
-
 
 // src/lib/algebra/ntt.rs
 // NTT fundamental to convert polynomials in R_q = Z_q[X] / (X^n + 1) to their NTT representation and back.
@@ -216,4 +205,3 @@ fn mod_pow(base: u64, mut exp: u64, modulus: u64) -> u64 {
 pub fn mod_inverse(a: u64, q: u64) -> u64 {
     mod_pow(a, q - 2, q)
 }
-

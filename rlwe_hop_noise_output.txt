@@ -1,0 +1,162 @@
+﻿=== CARGO STDOUT ===
+
+running 1 test
+test rlwe_hop_noise_sweep ... 
+=== RLWE/PRE HOP AND NOISE SWEEP ===
+Profile: N=256, q=998244353, t=17, PRE base=2^4.
+Runs: 10 fresh-randomness chains, each up to 10 sequential rekey+rerandomize hops.
+Correctness is checked by decryption and phase-error margin at every hop.
+LIMIT: functional/noise diagnostic only; not a PRE security or collusion-resistance proof.
+[TIME] Key/rekey/ciphertext setup: 0.007358s
+[SIZE] Ciphertext coefficient storage: 4112 bytes
+[NOISE] Decoding limit per coefficient: 29360111
+[CHECK] run=1/10, hop=1, decrypt=ok, max_phase_error=18778
+[CHECK] run=1/10, hop=2, decrypt=ok, max_phase_error=35145
+[CHECK] run=1/10, hop=3, decrypt=ok, max_phase_error=46828
+[CHECK] run=1/10, hop=4, decrypt=ok, max_phase_error=52228
+[CHECK] run=1/10, hop=5, decrypt=ok, max_phase_error=62199
+[CHECK] run=1/10, hop=6, decrypt=ok, max_phase_error=71207
+[CHECK] run=1/10, hop=7, decrypt=ok, max_phase_error=61274
+[CHECK] run=1/10, hop=8, decrypt=ok, max_phase_error=64000
+[CHECK] run=1/10, hop=9, decrypt=ok, max_phase_error=90690
+[CHECK] run=1/10, hop=10, decrypt=ok, max_phase_error=105348
+[CHECK] run=2/10, hop=1, decrypt=ok, max_phase_error=19434
+[CHECK] run=2/10, hop=2, decrypt=ok, max_phase_error=26875
+[CHECK] run=2/10, hop=3, decrypt=ok, max_phase_error=37240
+[CHECK] run=2/10, hop=4, decrypt=ok, max_phase_error=43405
+[CHECK] run=2/10, hop=5, decrypt=ok, max_phase_error=52348
+[CHECK] run=2/10, hop=6, decrypt=ok, max_phase_error=61368
+[CHECK] run=2/10, hop=7, decrypt=ok, max_phase_error=58172
+[CHECK] run=2/10, hop=8, decrypt=ok, max_phase_error=54538
+[CHECK] run=2/10, hop=9, decrypt=ok, max_phase_error=70756
+[CHECK] run=2/10, hop=10, decrypt=ok, max_phase_error=82137
+[CHECK] run=3/10, hop=1, decrypt=ok, max_phase_error=17900
+[CHECK] run=3/10, hop=2, decrypt=ok, max_phase_error=31844
+[CHECK] run=3/10, hop=3, decrypt=ok, max_phase_error=35419
+[CHECK] run=3/10, hop=4, decrypt=ok, max_phase_error=40263
+[CHECK] run=3/10, hop=5, decrypt=ok, max_phase_error=49487
+[CHECK] run=3/10, hop=6, decrypt=ok, max_phase_error=55329
+[CHECK] run=3/10, hop=7, decrypt=ok, max_phase_error=46784
+[CHECK] run=3/10, hop=8, decrypt=ok, max_phase_error=49810
+[CHECK] run=3/10, hop=9, decrypt=ok, max_phase_error=74363
+[CHECK] run=3/10, hop=10, decrypt=ok, max_phase_error=76029
+[CHECK] run=4/10, hop=1, decrypt=ok, max_phase_error=17723
+[CHECK] run=4/10, hop=2, decrypt=ok, max_phase_error=33032
+[CHECK] run=4/10, hop=3, decrypt=ok, max_phase_error=35575
+[CHECK] run=4/10, hop=4, decrypt=ok, max_phase_error=41402
+[CHECK] run=4/10, hop=5, decrypt=ok, max_phase_error=44273
+[CHECK] run=4/10, hop=6, decrypt=ok, max_phase_error=51105
+[CHECK] run=4/10, hop=7, decrypt=ok, max_phase_error=53262
+[CHECK] run=4/10, hop=8, decrypt=ok, max_phase_error=45643
+[CHECK] run=4/10, hop=9, decrypt=ok, max_phase_error=70190
+[CHECK] run=4/10, hop=10, decrypt=ok, max_phase_error=81368
+[CHECK] run=5/10, hop=1, decrypt=ok, max_phase_error=16115
+[CHECK] run=5/10, hop=2, decrypt=ok, max_phase_error=32323
+[CHECK] run=5/10, hop=3, decrypt=ok, max_phase_error=33474
+[CHECK] run=5/10, hop=4, decrypt=ok, max_phase_error=41047
+[CHECK] run=5/10, hop=5, decrypt=ok, max_phase_error=40950
+[CHECK] run=5/10, hop=6, decrypt=ok, max_phase_error=47474
+[CHECK] run=5/10, hop=7, decrypt=ok, max_phase_error=48552
+[CHECK] run=5/10, hop=8, decrypt=ok, max_phase_error=39909
+[CHECK] run=5/10, hop=9, decrypt=ok, max_phase_error=62023
+[CHECK] run=5/10, hop=10, decrypt=ok, max_phase_error=65919
+[CHECK] run=6/10, hop=1, decrypt=ok, max_phase_error=18804
+[CHECK] run=6/10, hop=2, decrypt=ok, max_phase_error=35296
+[CHECK] run=6/10, hop=3, decrypt=ok, max_phase_error=35079
+[CHECK] run=6/10, hop=4, decrypt=ok, max_phase_error=46112
+[CHECK] run=6/10, hop=5, decrypt=ok, max_phase_error=60189
+[CHECK] run=6/10, hop=6, decrypt=ok, max_phase_error=59057
+[CHECK] run=6/10, hop=7, decrypt=ok, max_phase_error=52356
+[CHECK] run=6/10, hop=8, decrypt=ok, max_phase_error=44436
+[CHECK] run=6/10, hop=9, decrypt=ok, max_phase_error=68809
+[CHECK] run=6/10, hop=10, decrypt=ok, max_phase_error=73218
+[CHECK] run=7/10, hop=1, decrypt=ok, max_phase_error=18047
+[CHECK] run=7/10, hop=2, decrypt=ok, max_phase_error=32003
+[CHECK] run=7/10, hop=3, decrypt=ok, max_phase_error=36512
+[CHECK] run=7/10, hop=4, decrypt=ok, max_phase_error=44747
+[CHECK] run=7/10, hop=5, decrypt=ok, max_phase_error=50128
+[CHECK] run=7/10, hop=6, decrypt=ok, max_phase_error=49769
+[CHECK] run=7/10, hop=7, decrypt=ok, max_phase_error=48728
+[CHECK] run=7/10, hop=8, decrypt=ok, max_phase_error=48271
+[CHECK] run=7/10, hop=9, decrypt=ok, max_phase_error=66439
+[CHECK] run=7/10, hop=10, decrypt=ok, max_phase_error=78128
+[CHECK] run=8/10, hop=1, decrypt=ok, max_phase_error=18970
+[CHECK] run=8/10, hop=2, decrypt=ok, max_phase_error=32063
+[CHECK] run=8/10, hop=3, decrypt=ok, max_phase_error=37252
+[CHECK] run=8/10, hop=4, decrypt=ok, max_phase_error=39968
+[CHECK] run=8/10, hop=5, decrypt=ok, max_phase_error=48249
+[CHECK] run=8/10, hop=6, decrypt=ok, max_phase_error=49605
+[CHECK] run=8/10, hop=7, decrypt=ok, max_phase_error=53210
+[CHECK] run=8/10, hop=8, decrypt=ok, max_phase_error=49700
+[CHECK] run=8/10, hop=9, decrypt=ok, max_phase_error=71423
+[CHECK] run=8/10, hop=10, decrypt=ok, max_phase_error=81632
+[CHECK] run=9/10, hop=1, decrypt=ok, max_phase_error=18062
+[CHECK] run=9/10, hop=2, decrypt=ok, max_phase_error=39452
+[CHECK] run=9/10, hop=3, decrypt=ok, max_phase_error=42989
+[CHECK] run=9/10, hop=4, decrypt=ok, max_phase_error=50718
+[CHECK] run=9/10, hop=5, decrypt=ok, max_phase_error=59844
+[CHECK] run=9/10, hop=6, decrypt=ok, max_phase_error=58460
+[CHECK] run=9/10, hop=7, decrypt=ok, max_phase_error=59886
+[CHECK] run=9/10, hop=8, decrypt=ok, max_phase_error=45226
+[CHECK] run=9/10, hop=9, decrypt=ok, max_phase_error=73236
+[CHECK] run=9/10, hop=10, decrypt=ok, max_phase_error=77308
+[CHECK] run=10/10, hop=1, decrypt=ok, max_phase_error=18039
+[CHECK] run=10/10, hop=2, decrypt=ok, max_phase_error=38940
+[CHECK] run=10/10, hop=3, decrypt=ok, max_phase_error=42552
+[CHECK] run=10/10, hop=4, decrypt=ok, max_phase_error=48030
+[CHECK] run=10/10, hop=5, decrypt=ok, max_phase_error=53800
+[CHECK] run=10/10, hop=6, decrypt=ok, max_phase_error=58133
+[CHECK] run=10/10, hop=7, decrypt=ok, max_phase_error=49887
+[CHECK] run=10/10, hop=8, decrypt=ok, max_phase_error=41489
+[CHECK] run=10/10, hop=9, decrypt=ok, max_phase_error=63865
+[CHECK] run=10/10, hop=10, decrypt=ok, max_phase_error=68772
+[STATS] single hop 1 (rekey + rerandomize): n=10, mean=0.000209320s, median=0.000196300s, min=0.000193200s, max=0.000283400s, sd=0.000028720s
+[NOISE-STATS] phase error after hop 1: n=10, min=16115, median=18054, max=19434 coefficients
+[STATS] single hop 2 (rekey + rerandomize): n=10, mean=0.000229590s, median=0.000205900s, min=0.000195400s, max=0.000322800s, sd=0.000048228s
+[NOISE-STATS] phase error after hop 2: n=10, min=26875, median=32677, max=39452 coefficients
+[STATS] single hop 3 (rekey + rerandomize): n=10, mean=0.000241550s, median=0.000203650s, min=0.000194100s, max=0.000369100s, sd=0.000069043s
+[NOISE-STATS] phase error after hop 3: n=10, min=33474, median=36876, max=46828 coefficients
+[STATS] single hop 4 (rekey + rerandomize): n=10, mean=0.000227090s, median=0.000196450s, min=0.000194400s, max=0.000338600s, sd=0.000055978s
+[NOISE-STATS] phase error after hop 4: n=10, min=39968, median=44076, max=52228 coefficients
+[STATS] single hop 5 (rekey + rerandomize): n=10, mean=0.000233080s, median=0.000201400s, min=0.000193700s, max=0.000331800s, sd=0.000055651s
+[NOISE-STATS] phase error after hop 5: n=10, min=40950, median=51238, max=62199 coefficients
+[STATS] single hop 6 (rekey + rerandomize): n=10, mean=0.000212280s, median=0.000196700s, min=0.000193000s, max=0.000303900s, sd=0.000034172s
+[NOISE-STATS] phase error after hop 6: n=10, min=47474, median=56731, max=71207 coefficients
+[STATS] single hop 7 (rekey + rerandomize): n=10, mean=0.000244890s, median=0.000202100s, min=0.000193700s, max=0.000370600s, sd=0.000072005s
+[NOISE-STATS] phase error after hop 7: n=10, min=46784, median=52783, max=61274 coefficients
+[STATS] single hop 8 (rekey + rerandomize): n=10, mean=0.000198940s, median=0.000195350s, min=0.000193700s, max=0.000221100s, sd=0.000008562s
+[NOISE-STATS] phase error after hop 8: n=10, min=39909, median=46957, max=64000 coefficients
+[STATS] single hop 9 (rekey + rerandomize): n=10, mean=0.000205870s, median=0.000196700s, min=0.000194300s, max=0.000248900s, sd=0.000019201s
+[NOISE-STATS] phase error after hop 9: n=10, min=62023, median=70473, max=90690 coefficients
+[STATS] single hop 10 (rekey + rerandomize): n=10, mean=0.000239930s, median=0.000214700s, min=0.000193700s, max=0.000327200s, sd=0.000057691s
+[NOISE-STATS] phase error after hop 10: n=10, min=65919, median=77718, max=105348 coefficients
+[STATS] cumulative chain through 1 hops: n=10, mean=0.000231190s, median=0.000218200s, min=0.000214300s, max=0.000304700s, sd=0.000028665s
+[STATS] cumulative chain through 3 hops: n=10, mean=0.001042110s, median=0.000951900s, min=0.000847600s, max=0.001563500s, sd=0.000232758s
+[STATS] cumulative chain through 5 hops: n=10, mean=0.001805450s, median=0.001650550s, min=0.001477400s, max=0.002421900s, sd=0.000359306s
+[STATS] cumulative chain through 10 hops: n=10, mean=0.003597830s, median=0.003559100s, min=0.003058700s, max=0.004142000s, sd=0.000414566s
+[PASS] All 10 chains decrypted correctly through 10 hops.
+LIMIT: chains reuse the same keys/rekeys and source ciphertext; randomness is refreshed for each hop.
+LIMIT: this measures correctness/noise and latency for the prototype parameters, not deployment security.
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+=== CARGO STDERR ===
+   Compiling pq-libpep v0.1.0 (C:\Users\andre\OneDrive\Desktop\informatica\magistrale 1\RU2\internship\PQlibPEP\PQlibPEP)
+warning: function `high_digit_coefficients_for_fixed_lhs` is never used
+    --> src\lib\core\bpr12_oblivious.rs:2073:4
+     |
+2073 | fn high_digit_coefficients_for_fixed_lhs(a_value: usize, lagrange: &[[u64; 17]; 17]) -> [u64; 17] {
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `encrypted_radix17_digit_product_from_precomputed_tables` is never used
+    --> src\lib\core\bpr12_oblivious.rs:2624:4
+     |
+2624 | fn encrypted_radix17_digit_product_from_precomputed_tables(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `pq-libpep` (lib) generated 2 warnings
+    Finished `release` profile [optimized] target(s) in 40.88s
+     Running tests\rlwe_hop_noise_benchmark.rs (target\release\deps\rlwe_hop_noise_benchmark-67073bc1869aa634.exe)

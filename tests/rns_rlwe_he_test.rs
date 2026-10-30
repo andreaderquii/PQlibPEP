@@ -1,12 +1,11 @@
 use num_bigint::{BigInt, BigUint, Sign};
-use pq_libpep::core::rns::{RnsModulusChain, RnsPoly};
+use pq_libpep::algebra::ring::PolyRq;
+use pq_libpep::core::rlwe_he::RlweHe;
 use pq_libpep::core::rlwe_rns::RnsRlwe;
+use pq_libpep::core::rlwe_rns::{RnsCiphertext, RnsSecretKey};
+use pq_libpep::core::rns::{RnsModulusChain, RnsPoly};
 use pq_libpep::core::rns_rlwe_he::RnsRlweHe;
 use rand::{rngs::StdRng, SeedableRng};
-use pq_libpep::core::rlwe_rns::{
-    RnsCiphertext,
-    RnsSecretKey,
-};
 
 const N: usize = 256;
 const P: u64 = 17;
@@ -21,20 +20,16 @@ fn constant_message(value: u64) -> Vec<u64> {
 ///
 /// The phase is reconstructed modulo the full CRT modulus Q and then
 /// centered before reduction modulo 17.
-fn decode_rns_phase_coefficient(
-    phase: &RnsPoly,
-    coefficient_index: usize,
-) -> u64 {
+fn decode_rns_phase_coefficient(phase: &RnsPoly, coefficient_index: usize) -> u64 {
     let residue_count = phase.residue_count();
 
     let moduli: Vec<u64> = (0..residue_count)
         .map(|i| phase.residue(i).modulus())
         .collect();
 
-    let full_modulus = moduli.iter().fold(
-        BigUint::from(1u64),
-        |acc, &q| acc * BigUint::from(q),
-    );
+    let full_modulus = moduli
+        .iter()
+        .fold(BigUint::from(1u64), |acc, &q| acc * BigUint::from(q));
 
     let half_modulus = &full_modulus >> 1usize;
 
@@ -44,16 +39,9 @@ fn decode_rns_phase_coefficient(
         let q_i_big = BigUint::from(q_i);
         let m_i = &full_modulus / &q_i_big;
 
-        let m_i_mod_q = (&m_i % q_i)
-            .to_u64_digits()
-            .first()
-            .copied()
-            .unwrap_or(0);
+        let m_i_mod_q = (&m_i % q_i).to_u64_digits().first().copied().unwrap_or(0);
 
-        let inverse = mod_inverse_u64(
-            m_i_mod_q,
-            q_i,
-        );
+        let inverse = mod_inverse_u64(m_i_mod_q, q_i);
 
         crt_constants.push((m_i, inverse));
     }
@@ -68,25 +56,16 @@ fn decode_rns_phase_coefficient(
     let mut x = BigUint::from(0u64);
 
     for residue_index in 0..residue_count {
-        let residue =
-            phase.residue(residue_index)
-                .coefficients()[coefficient_index];
+        let residue = phase.residue(residue_index).coefficients()[coefficient_index];
 
-        let (ref m_i, inverse) =
-            crt_constants[residue_index];
+        let (ref m_i, inverse) = crt_constants[residue_index];
 
-        x += BigUint::from(residue)
-            * m_i
-            * BigUint::from(inverse);
+        x += BigUint::from(residue) * m_i * BigUint::from(inverse);
     }
 
     x %= &full_modulus;
 
-    let x_mod_p = (&x % P)
-        .to_u64_digits()
-        .first()
-        .copied()
-        .unwrap_or(0);
+    let x_mod_p = (&x % P).to_u64_digits().first().copied().unwrap_or(0);
 
     // Centered representative:
     //
@@ -101,20 +80,13 @@ fn decode_rns_phase_coefficient(
     //     (x - Q) mod P
     //       = x_mod_p - Q_mod_p mod P
     if x > half_modulus {
-        (
-            x_mod_p
-                + P
-                - q_mod_p
-        ) % P
+        (x_mod_p + P - q_mod_p) % P
     } else {
         x_mod_p
     }
 }
 
-fn mod_inverse_u64(
-    value: u64,
-    modulus: u64,
-) -> u64 {
+fn mod_inverse_u64(value: u64, modulus: u64) -> u64 {
     let mut t: i128 = 0;
     let mut new_t: i128 = 1;
 
@@ -133,68 +105,37 @@ fn mod_inverse_u64(
         new_r = next_r;
     }
 
-    assert_eq!(
-        r,
-        1,
-        "CRT value is not invertible"
-    );
+    assert_eq!(r, 1, "CRT value is not invertible");
 
     t.rem_euclid(modulus as i128) as u64
 }
 
 #[test]
 fn test_rns_raw_multiplication() {
-    let chain =
-        RnsModulusChain::default_for_degree(N);
+    let chain = RnsModulusChain::default_for_degree(N);
 
-    let mut rng =
-        StdRng::seed_from_u64(
-            0x524E535F48455F31,
-        );
+    let mut rng = StdRng::seed_from_u64(0x524E535F48455F31);
 
     let rlwe = RnsRlwe::new();
     let he = RnsRlweHe::new();
 
-    let keys =
-        rlwe.keygen(&mut rng, &chain);
+    let keys = rlwe.keygen(&mut rng, &chain);
 
-    let ciphertext =
-        rlwe.encrypt(
-            &mut rng,
-            &keys.pk,
-            &constant_message(13),
-        );
+    let ciphertext = rlwe.encrypt(&mut rng, &keys.pk, &constant_message(13));
 
-    let raw =
-        he.mul_raw(
-            &ciphertext,
-            &ciphertext,
-        );
+    let raw = he.mul_raw(&ciphertext, &ciphertext);
 
     // phase =
     //
     // c0 + c1*s + c2*s^2
-    let secret_squared =
-        keys.sk
-            .s
-            .mul_negacyclic(&keys.sk.s);
+    let secret_squared = keys.sk.s.mul_negacyclic(&keys.sk.s);
 
-    let raw_phase =
-        raw.c0
-            .add(
-                &raw.c1
-                    .mul_negacyclic(&keys.sk.s),
-            )
-            .add(
-                &raw.c2
-                    .mul_negacyclic(&secret_squared),
-            );
+    let raw_phase = raw
+        .c0
+        .add(&raw.c1.mul_negacyclic(&keys.sk.s))
+        .add(&raw.c2.mul_negacyclic(&secret_squared));
 
-    let decoded =
-        decode_rns_phase_coefficient(
-            &raw_phase,
-            0,
-        );
+    let decoded = decode_rns_phase_coefficient(&raw_phase, 0);
 
     println!();
     println!("==============================================");
@@ -204,8 +145,7 @@ fn test_rns_raw_multiplication() {
     println!("decoded  = {}", decoded);
 
     assert_eq!(
-        decoded,
-        16,
+        decoded, 16,
         "raw ciphertext multiplication already breaks the plaintext"
     );
 
@@ -214,104 +154,57 @@ fn test_rns_raw_multiplication() {
 
 #[test]
 fn test_rns_relinearization_preserves_product() {
-    let chain =
-        RnsModulusChain::default_for_degree(N);
+    let chain = RnsModulusChain::default_for_degree(N);
 
-    let mut rng =
-        StdRng::seed_from_u64(
-            0x524E535F48455F31,
-        );
+    let mut rng = StdRng::seed_from_u64(0x524E535F48455F31);
 
     let rlwe = RnsRlwe::new();
     let he = RnsRlweHe::new();
 
-    let keys =
-        rlwe.keygen(&mut rng, &chain);
+    let keys = rlwe.keygen(&mut rng, &chain);
 
-    let relin_key =
-        he.generate_relinearization_key(
-            &mut rng,
-            &keys.sk,
-            8,
+    let relin_key = he.generate_relinearization_key(&mut rng, &keys.sk, 8);
+
+    let ciphertext = rlwe.encrypt(&mut rng, &keys.pk, &constant_message(13));
+
+    let raw = he.mul_raw(&ciphertext, &ciphertext);
+
+    let relinearized = he.relinearize(&raw, &relin_key);
+    println!();
+    println!("==============================================");
+    println!("       PER-LIMB RELINEARIZATION CHECK");
+    println!("==============================================");
+
+    for residue_index in 0..chain.len() {
+        let decoded = decode_single_rns_residue(&relinearized, &keys.sk, residue_index, 0);
+
+        println!(
+            "q[{}] = {:>10} -> decoded = {}",
+            residue_index,
+            chain.modulus(residue_index),
+            decoded
         );
+    }
 
-    let ciphertext =
-        rlwe.encrypt(
-            &mut rng,
-            &keys.pk,
-            &constant_message(13),
-        );
-
-    let raw =
-        he.mul_raw(
-            &ciphertext,
-            &ciphertext,
-        );
-
-    let relinearized =
-        he.relinearize(
-            &raw,
-            &relin_key,
-        );
-        println!();
-        println!("==============================================");
-        println!("       PER-LIMB RELINEARIZATION CHECK");
-        println!("==============================================");
-
-        for residue_index in 0..chain.len() {
-            let decoded = decode_single_rns_residue(
-                &relinearized,
-                &keys.sk,
-                residue_index,
-                0,
-            );
-
-            println!(
-                "q[{}] = {:>10} -> decoded = {}",
-                residue_index,
-                chain.modulus(residue_index),
-                decoded
-            );
-        }
-
-    let decoded =
-        rlwe.decrypt(
-            &keys.sk,
-            &relinearized,
-        );
+    let decoded = rlwe.decrypt(&keys.sk, &relinearized);
 
     println!();
     println!("==============================================");
     println!("            RNS RELINEARIZATION");
     println!("==============================================");
-    println!(
-        "expected = 16"
-    );
-    println!(
-        "decoded  = {}",
-        decoded[0]
-    );
+    println!("expected = 16");
+    println!("decoded  = {}", decoded[0]);
 
-    assert_eq!(
-        decoded[0],
-        16,
-        "relinearization changes the plaintext"
-    );
+    assert_eq!(decoded[0], 16, "relinearization changes the plaintext");
 
-    println!(
-        "RELINEARIZATION: OK"
-    );
+    println!("RELINEARIZATION: OK");
 }
 
 #[test]
 fn test_rns_ciphertext_multiplication_and_relinearization() {
-    let chain =
-        RnsModulusChain::default_for_degree(N);
+    let chain = RnsModulusChain::default_for_degree(N);
 
-    let mut rng =
-        StdRng::seed_from_u64(
-            0x524E535F48455F31,
-        );
+    let mut rng = StdRng::seed_from_u64(0x524E535F48455F31);
 
     let rlwe = RnsRlwe::new();
     let he = RnsRlweHe::new();
@@ -322,64 +215,28 @@ fn test_rns_ciphertext_multiplication_and_relinearization() {
     println!("N = {}", N);
     println!("RNS residues = {}", chain.len());
 
-    let keys =
-        rlwe.keygen(
-            &mut rng,
-            &chain,
-        );
+    let keys = rlwe.keygen(&mut rng, &chain);
 
-    let relin_key =
-        he.generate_relinearization_key(
-            &mut rng,
-            &keys.sk,
-            8,
-        );
+    let relin_key = he.generate_relinearization_key(&mut rng, &keys.sk, 8);
 
-    println!(
-        "relinearization digits = {}",
-        relin_key.entries.len()
-    );
+    println!("relinearization digits = {}", relin_key.entries.len());
 
-    let ciphertext =
-        rlwe.encrypt(
-            &mut rng,
-            &keys.pk,
-            &constant_message(13),
-        );
+    let ciphertext = rlwe.encrypt(&mut rng, &keys.pk, &constant_message(13));
 
-    let product =
-        he.mul_ciphertext(
-            &ciphertext,
-            &ciphertext,
-            &relin_key,
-        );
+    let product = he.mul_ciphertext(&ciphertext, &ciphertext, &relin_key);
 
-    let decrypted =
-        rlwe.decrypt(
-            &keys.sk,
-            &product,
-        );
+    let decrypted = rlwe.decrypt(&keys.sk, &product);
 
-    println!(
-        "Encrypted 13 * 13 = {}",
-        decrypted[0]
-    );
+    println!("Encrypted 13 * 13 = {}", decrypted[0]);
 
-    assert_eq!(
-        decrypted[0],
-        16
-    );
+    assert_eq!(decrypted[0], 16);
 
     assert!(
-        decrypted[1..]
-            .iter()
-            .all(|&c| c == 0),
+        decrypted[1..].iter().all(|&c| c == 0),
         "unexpected nonzero coefficients"
     );
 
-    println!(
-        "RNS ciphertext multiplication + relinearization: OK"
-    );
+    println!("RNS ciphertext multiplication + relinearization: OK");
 }
 
 fn decode_single_rns_residue(
@@ -403,11 +260,7 @@ fn decode_single_rns_residue(
     let x_mod_p = x % P;
 
     if x > q / 2 {
-        (
-            x_mod_p
-                + P
-                - (q % P)
-        ) % P
+        (x_mod_p + P - (q % P)) % P
     } else {
         x_mod_p
     }
@@ -435,10 +288,9 @@ fn measure_max_noise(
         .map(|i| phase.residue(i).modulus())
         .collect();
 
-    let full_modulus = moduli.iter().fold(
-        BigUint::from(1u64),
-        |acc, &q| acc * BigUint::from(q),
-    );
+    let full_modulus = moduli
+        .iter()
+        .fold(BigUint::from(1u64), |acc, &q| acc * BigUint::from(q));
 
     let half_modulus = &full_modulus / BigUint::from(2u64);
 
@@ -450,10 +302,7 @@ fn measure_max_noise(
 
     let inv_q_mod_p = mod_inverse_u64(q_mod_p, P);
 
-    let q_bigint = BigInt::from_biguint(
-        Sign::Plus,
-        full_modulus.clone(),
-    );
+    let q_bigint = BigInt::from_biguint(Sign::Plus, full_modulus.clone());
 
     let p_bigint = BigInt::from(P);
 
@@ -465,11 +314,7 @@ fn measure_max_noise(
         let q_i_big = BigUint::from(q_i);
         let m_i = &full_modulus / &q_i_big;
 
-        let m_i_mod_q = (&m_i % q_i)
-            .to_u64_digits()
-            .first()
-            .copied()
-            .unwrap_or(0);
+        let m_i_mod_q = (&m_i % q_i).to_u64_digits().first().copied().unwrap_or(0);
 
         let inverse = mod_inverse_u64(m_i_mod_q, q_i);
 
@@ -483,15 +328,11 @@ fn measure_max_noise(
         let mut value = BigUint::from(0u64);
 
         for residue_index in 0..moduli.len() {
-            let residue = phase
-                .residue(residue_index)
-                .coefficients()[coefficient_index];
+            let residue = phase.residue(residue_index).coefficients()[coefficient_index];
 
             let (m_i, inverse) = &crt_constants[residue_index];
 
-            value += BigUint::from(residue)
-                * m_i
-                * BigUint::from(*inverse);
+            value += BigUint::from(residue) * m_i * BigUint::from(*inverse);
         }
 
         value %= &full_modulus;
@@ -513,8 +354,7 @@ fn measure_max_noise(
 
         // Convert the CRT representative to the centered interval.
         let centered = if is_negative {
-            BigInt::from_biguint(Sign::Plus, value)
-                - q_bigint.clone()
+            BigInt::from_biguint(Sign::Plus, value) - q_bigint.clone()
         } else {
             BigInt::from_biguint(Sign::Plus, value)
         };
@@ -535,8 +375,7 @@ fn measure_max_noise(
             k_unsigned as i64
         };
 
-        let lifted_phase =
-            centered + BigInt::from(k_signed) * q_bigint.clone();
+        let lifted_phase = centered + BigInt::from(k_signed) * q_bigint.clone();
 
         let difference = lifted_phase - BigInt::from(expected);
 
@@ -577,14 +416,9 @@ fn test_rns_multiplication_depth_limit() {
 
     let keys = rlwe.keygen(&mut rng, &chain);
 
-    let relin_key =
-        he.generate_relinearization_key(&mut rng, &keys.sk, 8);
+    let relin_key = he.generate_relinearization_key(&mut rng, &keys.sk, 8);
 
-    let mut current = rlwe.encrypt(
-        &mut rng,
-        &keys.pk,
-        &constant_message(X),
-    );
+    let mut current = rlwe.encrypt(&mut rng, &keys.pk, &constant_message(X));
 
     let expected_results = [
         (2usize, 16u64),
@@ -604,11 +438,7 @@ fn test_rns_multiplication_depth_limit() {
         println!();
         println!("Computing encrypted x^{}...", exponent);
 
-        current = he.mul_ciphertext(
-            &current,
-            &current,
-            &relin_key,
-        );
+        current = he.mul_ciphertext(&current, &current, &relin_key);
 
         let decrypted = rlwe.decrypt(&keys.sk, &current);
 
@@ -616,27 +446,19 @@ fn test_rns_multiplication_depth_limit() {
         expected_plaintext[0] = expected_value % P;
 
         // Measure even if the decrypted plaintext is incorrect.
-        let (noise_estimate, full_modulus) = measure_max_noise(
-            &current,
-            &keys.sk,
-            &expected_plaintext,
-        );
+        let (noise_estimate, full_modulus) =
+            measure_max_noise(&current, &keys.sk, &expected_plaintext);
 
-        let noise_limit =
-            &full_modulus / BigUint::from(2 * P);
+        let noise_limit = &full_modulus / BigUint::from(2 * P);
 
         let correct_constant =
-            decrypted[0] == expected_value
-                && decrypted[1..].iter().all(|&c| c == 0);
+            decrypted[0] == expected_value && decrypted[1..].iter().all(|&c| c == 0);
 
         println!("Expected coefficient[0] = {}", expected_value);
         println!("Decoded coefficient[0]  = {}", decrypted[0]);
 
         if correct_constant {
-            println!(
-                "Maximum absolute noise = {}",
-                noise_estimate
-            );
+            println!("Maximum absolute noise = {}", noise_estimate);
         } else {
             println!(
                 "Minimum compatible-lift noise (lower bound) = {}",
@@ -644,19 +466,11 @@ fn test_rns_multiplication_depth_limit() {
             );
         }
 
-        println!(
-            "Noise magnitude in bits = {}",
-            noise_estimate.bits()
-        );
-        println!(
-            "Approximate decoding threshold Q/(2P) = {}",
-            noise_limit
-        );
+        println!("Noise magnitude in bits = {}", noise_estimate.bits());
+        println!("Approximate decoding threshold Q/(2P) = {}", noise_limit);
 
         if noise_estimate >= noise_limit {
-            println!(
-                "The minimum compatible noise already reaches/exceeds the threshold."
-            );
+            println!("The minimum compatible noise already reaches/exceeds the threshold.");
 
             println!(
                 "Minimum threshold overshoot = {}",
@@ -668,9 +482,7 @@ fn test_rns_multiplication_depth_limit() {
                 &noise_limit - &noise_estimate
             );
         } else {
-            println!(
-                "The lower bound is below the threshold; actual noise may be larger."
-            );
+            println!("The lower bound is below the threshold; actual noise may be larger.");
         }
 
         if !correct_constant {
@@ -688,14 +500,8 @@ fn test_rns_multiplication_depth_limit() {
     println!();
     println!("==============================================");
     println!("DEPTH EXPLORATION SUMMARY");
-    println!(
-        "Successful multiplication levels = {}",
-        successful_levels
-    );
-    println!(
-        "Last successful exponent = x^{}",
-        last_successful_exponent
-    );
+    println!("Successful multiplication levels = {}", successful_levels);
+    println!("Last successful exponent = x^{}", last_successful_exponent);
     println!("==============================================");
 
     assert!(
@@ -713,18 +519,8 @@ fn test_rns_extended_modulus_depth() {
     // This changes only this test, not the default project parameters.
     let chain = RnsModulusChain::new(
         vec![
-            8416769,
-            8434177,
-            8573441,
-            8599553,
-            8782337,
-            8825857,
-            8834561,
-            8860673,
-            8904193,
-            9113089,
-            9139201,
-            9165313,
+            8416769, 8434177, 8573441, 8599553, 8782337, 8825857, 8834561, 8860673, 8904193,
+            9113089, 9139201, 9165313,
         ],
         N,
     );
@@ -734,10 +530,10 @@ fn test_rns_extended_modulus_depth() {
     let rlwe = RnsRlwe::new();
     let he = RnsRlweHe::new();
 
-    let full_modulus = chain.moduli.iter().fold(
-        BigUint::from(1u64),
-        |acc, &q| acc * BigUint::from(q),
-    );
+    let full_modulus = chain
+        .moduli
+        .iter()
+        .fold(BigUint::from(1u64), |acc, &q| acc * BigUint::from(q));
 
     let noise_limit = &full_modulus / BigUint::from(2 * P);
 
@@ -750,22 +546,11 @@ fn test_rns_extended_modulus_depth() {
 
     let keys = rlwe.keygen(&mut rng, &chain);
 
-    let relin_key = he.generate_relinearization_key(
-        &mut rng,
-        &keys.sk,
-        8,
-    );
+    let relin_key = he.generate_relinearization_key(&mut rng, &keys.sk, 8);
 
-    println!(
-        "Relinearization digits = {}",
-        relin_key.entries.len()
-    );
+    println!("Relinearization digits = {}", relin_key.entries.len());
 
-    let mut current = rlwe.encrypt(
-        &mut rng,
-        &keys.pk,
-        &constant_message(X),
-    );
+    let mut current = rlwe.encrypt(&mut rng, &keys.pk, &constant_message(X));
 
     let expected_results = [
         (2usize, 16u64),
@@ -785,32 +570,23 @@ fn test_rns_extended_modulus_depth() {
         println!();
         println!("Computing encrypted x^{}...", exponent);
 
-        current = he.mul_ciphertext(
-            &current,
-            &current,
-            &relin_key,
-        );
+        current = he.mul_ciphertext(&current, &current, &relin_key);
 
         let decrypted = rlwe.decrypt(&keys.sk, &current);
 
         let mut expected_plaintext = vec![0u64; N];
         expected_plaintext[0] = expected_value % P;
 
-        let (noise_estimate, reconstructed_q) = measure_max_noise(
-            &current,
-            &keys.sk,
-            &expected_plaintext,
-        );
+        let (noise_estimate, reconstructed_q) =
+            measure_max_noise(&current, &keys.sk, &expected_plaintext);
 
         assert_eq!(
-            reconstructed_q,
-            full_modulus,
+            reconstructed_q, full_modulus,
             "Unexpected CRT modulus during noise measurement"
         );
 
         let correct_constant =
-            decrypted[0] == expected_value
-                && decrypted[1..].iter().all(|&c| c == 0);
+            decrypted[0] == expected_value && decrypted[1..].iter().all(|&c| c == 0);
 
         println!("Expected plaintext = {}", expected_value);
         println!("Decoded plaintext  = {}", decrypted[0]);
@@ -863,7 +639,6 @@ fn test_rns_extended_modulus_depth() {
     );
 }
 
-
 #[test]
 fn test_rns_leveled_modswitch_depth_8() {
     const X: u64 = 13;
@@ -872,39 +647,20 @@ fn test_rns_leveled_modswitch_depth_8() {
     // Start with 12 valid RNS primes.
     // One prime is removed after each multiplication level.
     const MODULI: [u64; 12] = [
-        8416769,
-        8434177,
-        8573441,
-        8599553,
-        8782337,
-        8825857,
-        8834561,
-        8860673,
-        8904193,
-        9113089,
-        9139201,
-        9165313,
+        8416769, 8434177, 8573441, 8599553, 8782337, 8825857, 8834561, 8860673, 8904193, 9113089,
+        9139201, 9165313,
     ];
 
-    let initial_chain =
-        RnsModulusChain::new(MODULI.to_vec(), N);
+    let initial_chain = RnsModulusChain::new(MODULI.to_vec(), N);
 
-    let mut rng =
-        StdRng::seed_from_u64(0x524E535F4C455638);
+    let mut rng = StdRng::seed_from_u64(0x524E535F4C455638);
 
     let rlwe = RnsRlwe::new();
     let he = RnsRlweHe::new();
 
-    let keys = rlwe.keygen(
-        &mut rng,
-        &initial_chain,
-    );
+    let keys = rlwe.keygen(&mut rng, &initial_chain);
 
-    let mut current = rlwe.encrypt(
-        &mut rng,
-        &keys.pk,
-        &constant_message(X),
-    );
+    let mut current = rlwe.encrypt(&mut rng, &keys.pk, &constant_message(X));
 
     // x^2 = 16 mod 17.
     // x^4 = 1 mod 17; every subsequent power here is also 1.
@@ -926,9 +682,7 @@ fn test_rns_leveled_modswitch_depth_8() {
     println!("==============================================");
     println!("Initial RNS residues = {}", MODULI.len());
 
-    for (level, (exponent, expected_value))
-        in expected_results.iter().copied().enumerate()
-    {
+    for (level, (exponent, expected_value)) in expected_results.iter().copied().enumerate() {
         // The input ciphertext must use this level's active RNS base.
         let active_len = MODULI.len() - level;
 
@@ -939,10 +693,7 @@ fn test_rns_leveled_modswitch_depth_8() {
             level + 1,
         );
 
-        let level_chain = RnsModulusChain::new(
-            MODULI[..active_len].to_vec(),
-            N,
-        );
+        let level_chain = RnsModulusChain::new(MODULI[..active_len].to_vec(), N);
 
         // The same small secret polynomial is represented in the
         // current RNS base by retaining the matching residue prefix.
@@ -955,41 +706,20 @@ fn test_rns_leveled_modswitch_depth_8() {
 
         // Relinearization keys are generated for the modulus currently
         // in use, rather than reusing a key from another level.
-        let relin_key = he.generate_relinearization_key(
-            &mut rng,
-            &level_sk,
-            8,
-        );
+        let relin_key = he.generate_relinearization_key(&mut rng, &level_sk, 8);
 
         println!();
-        println!(
-            "Level {}: computing encrypted x^{}",
-            level + 1,
-            exponent,
-        );
+        println!("Level {}: computing encrypted x^{}", level + 1, exponent,);
         println!("Input RNS residues = {}", level_chain.len());
-        println!(
-            "Relinearization digits = {}",
-            relin_key.entries.len()
-        );
+        println!("Relinearization digits = {}", relin_key.entries.len());
 
         // Multiply ciphertext by itself and relinearize.
-        let product = he.mul_ciphertext(
-            &current,
-            &current,
-            &relin_key,
-        );
+        let product = he.mul_ciphertext(&current, &current, &relin_key);
 
         // Drop exactly one RNS modulus using the BGV correction.
-        let target_chain = RnsModulusChain::new(
-            MODULI[..active_len - 1].to_vec(),
-            N,
-        );
+        let target_chain = RnsModulusChain::new(MODULI[..active_len - 1].to_vec(), N);
 
-        current = he.modulus_switch(
-            &product,
-            &target_chain,
-        );
+        current = he.modulus_switch(&product, &target_chain);
 
         let target_sk = RnsSecretKey {
             s: RnsPoly {
@@ -999,26 +729,18 @@ fn test_rns_leveled_modswitch_depth_8() {
         };
 
         // Decrypt the output at its new, smaller modulus.
-        let decrypted = rlwe.decrypt(
-            &target_sk,
-            &current,
-        );
+        let decrypted = rlwe.decrypt(&target_sk, &current);
 
         let mut expected_plaintext = vec![0u64; N];
         expected_plaintext[0] = expected_value % P;
 
-        let (noise_estimate, switched_q) = measure_max_noise(
-            &current,
-            &target_sk,
-            &expected_plaintext,
-        );
+        let (noise_estimate, switched_q) =
+            measure_max_noise(&current, &target_sk, &expected_plaintext);
 
-        let decoding_limit =
-            &switched_q / BigUint::from(2 * P);
+        let decoding_limit = &switched_q / BigUint::from(2 * P);
 
         let correct_constant =
-            decrypted[0] == expected_value
-                && decrypted[1..].iter().all(|&c| c == 0);
+            decrypted[0] == expected_value && decrypted[1..].iter().all(|&c| c == 0);
 
         println!("Expected plaintext = {}", expected_value);
         println!("Decoded plaintext  = {}", decrypted[0]);
@@ -1032,17 +754,11 @@ fn test_rns_leveled_modswitch_depth_8() {
                 &decoding_limit - &noise_estimate
             );
         } else {
-            println!(
-                "Noise estimate reaches/exceeds the approximate decoding limit"
-            );
+            println!("Noise estimate reaches/exceeds the approximate decoding limit");
         }
 
         if !correct_constant {
-            println!(
-                "DECODING FAILURE at level {} (x^{})",
-                level + 1,
-                exponent,
-            );
+            println!("DECODING FAILURE at level {} (x^{})", level + 1, exponent,);
             break;
         }
 
@@ -1058,8 +774,119 @@ fn test_rns_leveled_modswitch_depth_8() {
     println!("==============================================");
 
     assert_eq!(
-        successful_levels,
-        8,
+        successful_levels, 8,
         "the leveled RNS-BGV prototype did not complete all eight multiplication levels"
+    );
+}
+
+/// Exercises the public RlweHe wrapper on non-constant polynomials.
+///
+/// Existing low-level RNS HE tests focus heavily on constant messages. This
+/// regression checks that the wrapper's real modulus switches, multiplication,
+/// relinearization and decoding preserve the full negacyclic product, not just
+/// coefficient zero. PolyRq stores N+1 values; the final value is padding.
+#[test]
+fn test_rlwe_he_wrapper_handles_nonconstant_products_and_real_modswitch() {
+    let mut rng = StdRng::seed_from_u64(0x524E535F47454E50);
+    let evaluator = RlweHe::new();
+    let keygen = evaluator.keygen(&mut rng, N);
+    let relin_keys = evaluator.generate_relinearization_key_chain(&mut rng, &keygen.sk, 8);
+
+    // Dense, deterministic, non-constant plaintexts. These exercise many
+    // coefficient interactions, including negacyclic wraparound at X^N = -1.
+    let a_coeffs = (0..N).map(|i| (i as u64 * 5 + 3) % P).collect::<Vec<_>>();
+    let b_coeffs = (0..N).map(|i| (i as u64 * 7 + 2) % P).collect::<Vec<_>>();
+    let c_coeffs = (0..N).map(|i| (i as u64 * 11 + 6) % P).collect::<Vec<_>>();
+
+    let a = PolyRq::from_coeffs(&a_coeffs, N, P);
+    let b = PolyRq::from_coeffs(&b_coeffs, N, P);
+    let c = PolyRq::from_coeffs(&c_coeffs, N, P);
+
+    let encrypted_a = evaluator.encrypt(&mut rng, &keygen.pk, &a, N);
+    let initial_residue_count = evaluator.chain().len();
+
+    // Check fresh encryption and genuine switching to several RNS prefixes.
+    let decrypted_a = evaluator.decrypt(&keygen.sk, &encrypted_a, N);
+    assert_eq!(
+        decrypted_a.to_coeffs_vec(),
+        a.to_coeffs_vec(),
+        "fresh RlweHe encryption must preserve every coefficient and padding"
+    );
+    assert_eq!(
+        decrypted_a.coefficients()[N],
+        0,
+        "PolyRq padding must be zero"
+    );
+
+    for target_level in [1usize, 2, 3] {
+        let switched = evaluator.modulus_switch_to_level(&encrypted_a, target_level);
+        assert_eq!(switched.level(), target_level);
+        assert_eq!(
+            switched.ciphertext.u.residue_count(),
+            initial_residue_count - target_level,
+            "modulus switching must drop one RNS prime per level"
+        );
+        assert_eq!(
+            switched.ciphertext.v.residue_count(),
+            initial_residue_count - target_level,
+            "both ciphertext components must use the active RNS prefix"
+        );
+
+        let recovered = evaluator.decrypt(&keygen.sk, &switched, N);
+        assert_eq!(
+            recovered.to_coeffs_vec(),
+            a.to_coeffs_vec(),
+            "modulus switching to level {target_level} changed a non-constant plaintext"
+        );
+        assert_eq!(
+            recovered.coefficients()[N],
+            0,
+            "padding changed after switching"
+        );
+    }
+
+    // First multiplication: a(X) * b(X) in Z_17[X]/(X^N + 1).
+    let encrypted_b = evaluator.encrypt(&mut rng, &keygen.pk, &b, N);
+    let expected_ab = a.mul_negacyclic(&b);
+    let encrypted_ab = evaluator.mul_ciphertext(&encrypted_a, &encrypted_b, &relin_keys);
+    assert_eq!(
+        encrypted_ab.level(),
+        1,
+        "one multiplication must consume one level"
+    );
+
+    let recovered_ab = evaluator.decrypt(&keygen.sk, &encrypted_ab, N);
+    assert_eq!(
+        recovered_ab.to_coeffs_vec(),
+        expected_ab.to_coeffs_vec(),
+        "relinearized RlweHe product differs from the full negacyclic reference"
+    );
+    assert_eq!(
+        recovered_ab.coefficients()[N],
+        0,
+        "product padding must be zero"
+    );
+
+    // Second multiplication at level 1. Align c to the same RNS prefix first.
+    let encrypted_c = evaluator.encrypt(&mut rng, &keygen.pk, &c, N);
+    let encrypted_c_level1 = evaluator.modulus_switch_to_level(&encrypted_c, 1);
+    let expected_abc = expected_ab.mul_negacyclic(&c);
+    let encrypted_abc = evaluator.mul_ciphertext(&encrypted_ab, &encrypted_c_level1, &relin_keys);
+    assert_eq!(
+        encrypted_abc.level(),
+        2,
+        "second multiplication must consume level 2"
+    );
+
+    let recovered_abc = evaluator.decrypt(&keygen.sk, &encrypted_abc, N);
+    assert_eq!(
+        recovered_abc.to_coeffs_vec(),
+        expected_abc.to_coeffs_vec(),
+        "two-level non-constant RlweHe evaluation differs from the reference"
+    );
+    assert_eq!(
+        recovered_abc.coefficients()[N],
+        0,
+        "two-level padding must be zero"
     );
 }

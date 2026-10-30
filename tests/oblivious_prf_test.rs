@@ -1,12 +1,6 @@
-use pq_libpep::core::id_encoding::{
-    bytes_to_bits,
-    string_to_id,
-};
+use pq_libpep::core::id_encoding::{bytes_to_bits, string_to_id};
 
-use pq_libpep::core::oblivious_prf::{
-    EncryptedInput,
-    ObliviousPrf,
-};
+use pq_libpep::core::oblivious_prf::{EncryptedInput, ObliviousPrf};
 
 use pq_libpep::core::rlwe::KeyGenResult;
 use pq_libpep::core::rlwe_pke::encrypt;
@@ -34,22 +28,12 @@ fn test_oblivious_prf_encrypted_input() {
     );
 
     // 2. Generate the RLWE key pair.
-    let keygen = KeyGenResult::keygen(
-        &mut rng,
-        N,
-    );
+    let keygen = KeyGenResult::keygen(&mut rng, N);
 
     // 3. Encrypt each bit independently.
     let encrypted_bits = bits
         .iter()
-        .map(|&bit| {
-            encrypt(
-                &mut rng,
-                &keygen.pk,
-                &[bit],
-                N,
-            )
-        })
+        .map(|&bit| encrypt(&mut rng, &keygen.pk, &[bit], N))
         .collect::<Vec<_>>();
 
     // 4. Assemble the encrypted input.
@@ -70,19 +54,11 @@ fn test_oblivious_prf_encrypted_input() {
     let _transcryptor = Transcryptor::new(oblivious_prf);
 
     // 6. Verify each encrypted bit locally.
-    for (index, ciphertext) in
-        encrypted_input.bits.iter().enumerate()
-    {
-        let recovered = pq_libpep::core::rlwe_pke::decrypt(
-            &keygen.sk,
-            ciphertext,
-            N,
-            1,
-        );
+    for (index, ciphertext) in encrypted_input.bits.iter().enumerate() {
+        let recovered = pq_libpep::core::rlwe_pke::decrypt(&keygen.sk, ciphertext, N, 1);
 
         assert_eq!(
-            recovered[0],
-            bits[index],
+            recovered[0], bits[index],
             "encrypted bit {} did not decrypt correctly",
             index
         );
@@ -90,9 +66,6 @@ fn test_oblivious_prf_encrypted_input() {
 
     println!("Identifier bytes = {}", id.len());
     println!("Input bits = {}", bits.len());
-    println!(
-        "Encrypted bits = {}",
-        encrypted_input.bits.len()
-    );
+    println!("Encrypted bits = {}", encrypted_input.bits.len());
     println!("Encrypted input round-trip: OK");
 }

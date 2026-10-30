@@ -1,18 +1,9 @@
 use pq_libpep::algebra::ring::PolyRq;
 use pq_libpep::core::id_encoding::string_to_id;
-use pq_libpep::core::params::{
-    prf_modulus_chain,
-    RING_DIMENSION,
-};
+use pq_libpep::core::params::{prf_modulus_chain, RING_DIMENSION};
 use pq_libpep::core::pseudonym::pseudonymize_32;
-use pq_libpep::core::reshuffle::{
-    derive_reshuffle_factor,
-    lift_prf_output_to_q,
-};
-use pq_libpep::core::rlwr_prf::{
-    RlwrPrf,
-    RlwrPrfBase,
-};
+use pq_libpep::core::reshuffle::{derive_reshuffle_factor, lift_prf_output_to_q};
+use pq_libpep::core::rlwr_prf::{RlwrPrf, RlwrPrfBase};
 
 use rand::rngs::StdRng;
 use rand::SeedableRng;
@@ -27,12 +18,7 @@ fn test_prf() -> RlwrPrf {
     let chain = prf_modulus_chain();
     let highest_modulus = *chain.last().unwrap();
 
-    let base = RlwrPrfBase::sample(
-        &mut rng,
-        N,
-        highest_modulus,
-        256,
-    );
+    let base = RlwrPrfBase::sample(&mut rng, N, highest_modulus, 256);
 
     RlwrPrf::new(base, chain)
 }
@@ -46,7 +32,6 @@ fn test_domain_to_reshuffle_factor_e2e() {
 
     let prf = test_prf();
 
-    
     let domain_a = "hospital-A";
     let domain_b = "hospital-B";
 
@@ -78,8 +63,7 @@ fn test_domain_to_reshuffle_factor_e2e() {
     );
 
     assert_ne!(
-        prf_a,
-        prf_b,
+        prf_a, prf_b,
         "different domains must produce different PRF outputs"
     );
 
@@ -89,19 +73,9 @@ fn test_domain_to_reshuffle_factor_e2e() {
     // Derive the actual reshuffling factors in R_q from the PRF outputs.
     // The factor is domain-dependent, so two different domains must produce
     // different factors while remaining valid for the RLWE ciphertext modulus.
-    let g_a = derive_reshuffle_factor(
-        &prf,
-        domain_a,
-        N,
-        Q,
-    );
+    let g_a = derive_reshuffle_factor(&prf, domain_a, N, Q);
 
-    let g_b = derive_reshuffle_factor(
-        &prf,
-        domain_b,
-        N,
-        Q,
-    );
+    let g_b = derive_reshuffle_factor(&prf, domain_b, N, Q);
 
     println!();
     println!(
@@ -118,8 +92,7 @@ fn test_domain_to_reshuffle_factor_e2e() {
     assert_eq!(g_b.modulus(), Q);
 
     assert_ne!(
-        g_a,
-        g_b,
+        g_a, g_b,
         "different domains must produce different reshuffling factors"
     );
 
@@ -134,10 +107,10 @@ fn test_full_prf_derived_reshuffle() {
     use pq_libpep::algebra::ring::PolyRq;
     use pq_libpep::core::id_encoding::string_to_id;
     use pq_libpep::core::pseudonym::pseudonymize_32;
+    use pq_libpep::core::reshuffle::{derive_reshuffle_factor, reshuffle};
     use pq_libpep::core::rlwe::KeyGenResult;
     use pq_libpep::core::rlwe_pke::{decrypt_poly, encrypt_poly};
     use pq_libpep::core::rlwr_prf::{RlwrPrf, RlwrPrfBase};
-    use pq_libpep::core::reshuffle::{derive_reshuffle_factor, reshuffle};
     use rand::thread_rng;
 
     const N: usize = 256;
@@ -182,10 +155,7 @@ fn test_full_prf_derived_reshuffle() {
 
     println!("\n[1] DOMAIN -> PRF");
     println!("Domain                  : {}", domain);
-    println!(
-        "PRF output modulus      : {}",
-        prf_output.modulus()
-    );
+    println!("PRF output modulus      : {}", prf_output.modulus());
     println!(
         "PRF output first 16     : {:?}",
         &prf_output.coefficients()[..16]
@@ -198,10 +168,7 @@ fn test_full_prf_derived_reshuffle() {
     let factor = derive_reshuffle_factor(&prf, domain, N, Q);
 
     println!("\n[2] LIFT: R17 -> Rq");
-    println!(
-        "Lifted factor modulus   : {}",
-        factor.modulus()
-    );
+    println!("Lifted factor modulus   : {}", factor.modulus());
     println!(
         "Lifted factor first 16  : {:?}",
         &factor.coefficients()[..16]
@@ -212,23 +179,14 @@ fn test_full_prf_derived_reshuffle() {
     // ----------------------------------------------------------
 
     let message_coeffs: Vec<u64> = (0..N)
-        .map(|i| {
-            (7 * i as u64 * i as u64 + 11 * i as u64 + 3) % P
-        })
+        .map(|i| (7 * i as u64 * i as u64 + 11 * i as u64 + 3) % P)
         .collect();
 
-    let message = PolyRq::from_coeffs(
-        &message_coeffs,
-        N,
-        Q,
-    );
+    let message = PolyRq::from_coeffs(&message_coeffs, N, Q);
 
     println!("\n[3] PLAINTEXT");
     println!("Plaintext modulus       : {}", P);
-    println!(
-        "Plaintext first 16      : {:?}",
-        &message_coeffs[..16]
-    );
+    println!("Plaintext first 16      : {:?}", &message_coeffs[..16]);
 
     // ----------------------------------------------------------
     // 4. Encrypt
@@ -236,12 +194,7 @@ fn test_full_prf_derived_reshuffle() {
 
     let keygen = KeyGenResult::keygen(&mut rng, N);
 
-    let ciphertext = encrypt_poly(
-        &mut rng,
-        &keygen.pk,
-        &message,
-        N,
-    );
+    let ciphertext = encrypt_poly(&mut rng, &keygen.pk, &message, N);
 
     println!("\n[4] RLWE ENCRYPTION");
     println!(
@@ -257,15 +210,10 @@ fn test_full_prf_derived_reshuffle() {
     // 5. Apply reshuffle to ciphertext
     // ----------------------------------------------------------
 
-    let reshuffled = reshuffle(
-        &ciphertext,
-        &factor,
-    );
+    let reshuffled = reshuffle(&ciphertext, &factor);
 
     println!("\n[5] RESHUFFLE");
-    println!(
-        "Operation               : (u, v) -> (u * g, v * g)"
-    );
+    println!("Operation               : (u, v) -> (u * g, v * g)");
     println!(
         "Reshuffled u first 4    : {:?}",
         &reshuffled.u.coefficients()[..4]
@@ -279,11 +227,7 @@ fn test_full_prf_derived_reshuffle() {
     // 6. Decrypt reshuffled ciphertext
     // ----------------------------------------------------------
 
-    let recovered = decrypt_poly(
-        &keygen.sk,
-        &reshuffled,
-        N,
-    );
+    let recovered = decrypt_poly(&keygen.sk, &reshuffled, N);
 
     println!("\n[6] DECRYPT RESHUFFLED CIPHERTEXT");
     println!(
@@ -295,11 +239,7 @@ fn test_full_prf_derived_reshuffle() {
     // 7. Compute expected plaintext M * g mod 17
     // ----------------------------------------------------------
 
-    let message_p = PolyRq::from_coeffs(
-        &message_coeffs,
-        N,
-        P,
-    );
+    let message_p = PolyRq::from_coeffs(&message_coeffs, N, P);
 
     let factor_p_coeffs: Vec<u64> = factor
         .coefficients()
@@ -308,19 +248,12 @@ fn test_full_prf_derived_reshuffle() {
         .map(|&c| c % P)
         .collect();
 
-    let factor_p = PolyRq::from_coeffs(
-        &factor_p_coeffs,
-        N,
-        P,
-    );
+    let factor_p = PolyRq::from_coeffs(&factor_p_coeffs, N, P);
 
     let expected = message_p.mul_negacyclic(&factor_p);
 
     println!("\n[7] EXPECTED RESULT");
-    println!(
-        "Expected = M * g mod {}",
-        P
-    );
+    println!("Expected = M * g mod {}", P);
     println!(
         "Expected first 16      : {:?}",
         &expected.coefficients()[..16]
@@ -342,14 +275,10 @@ fn test_full_prf_derived_reshuffle() {
     }
 
     println!("\n[8] VERIFICATION");
-    println!(
-        "Coefficient mismatches : {} / {}",
-        mismatches, N
-    );
+    println!("Coefficient mismatches : {} / {}", mismatches, N);
 
     assert_eq!(
-        mismatches,
-        0,
+        mismatches, 0,
         "reshuffled plaintext does not match M * g mod 17"
     );
 

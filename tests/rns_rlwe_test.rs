@@ -1,5 +1,5 @@
-use pq_libpep::core::rns::RnsModulusChain;
 use pq_libpep::core::rlwe_rns::RnsRlwe;
+use pq_libpep::core::rns::RnsModulusChain;
 use rand::{rngs::StdRng, SeedableRng};
 
 #[test]
@@ -12,9 +12,7 @@ fn test_rns_rlwe_encrypt_decrypt_roundtrip() {
     let rlwe = RnsRlwe::new();
     let keys = rlwe.keygen(&mut rng, &chain);
 
-    let message: Vec<u64> = (0..n)
-        .map(|i| ((7 * i + 3) % 17) as u64)
-        .collect();
+    let message: Vec<u64> = (0..n).map(|i| ((7 * i + 3) % 17) as u64).collect();
 
     let ciphertext = rlwe.encrypt(&mut rng, &keys.pk, &message);
     let decrypted = rlwe.decrypt(&keys.sk, &ciphertext);
@@ -54,13 +52,10 @@ fn test_rns_rlwe_full_plaintext_range() {
     let rlwe = RnsRlwe::new();
     let keys = rlwe.keygen(&mut rng, &chain);
 
-    let message: Vec<u64> = (0..n)
-        .map(|i| (i % 17) as u64)
-        .collect();
+    let message: Vec<u64> = (0..n).map(|i| (i % 17) as u64).collect();
 
     let ciphertext = rlwe.encrypt(&mut rng, &keys.pk, &message);
     let decrypted = rlwe.decrypt(&keys.sk, &ciphertext);
 
     assert_eq!(decrypted, message);
 }
-

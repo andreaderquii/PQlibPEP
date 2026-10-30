@@ -2,9 +2,10 @@ use num_bigint::BigUint;
 use rand::RngCore;
 
 use crate::algebra::ring::PolyRq;
+use crate::parameters::rns_prototype;
 use crate::core::rns::{RnsModulusChain, RnsPoly};
 
-const PLAINTEXT_MODULUS: u64 = 17;
+const PLAINTEXT_MODULUS: u64 = rns_prototype::PLAINTEXT_MODULUS;
 
 // RNS RLWE secret key.
 //
@@ -54,11 +55,7 @@ impl RnsRlwe {
     }
 
     // Generate an RNS RLWE key pair.
-    pub fn keygen<R: RngCore>(
-        &self,
-        rng: &mut R,
-        chain: &RnsModulusChain,
-    ) -> RnsKeyGenResult {
+    pub fn keygen<R: RngCore>(&self, rng: &mut R, chain: &RnsModulusChain) -> RnsKeyGenResult {
         let a = sample_uniform_rns_poly(rng, chain);
         let s = sample_small_rns_poly(rng, chain);
         let e = sample_small_rns_poly(rng, chain);
@@ -82,14 +79,7 @@ impl RnsRlwe {
     ) -> RnsCiphertext {
         let n = pk.a.degree;
 
-        let chain = RnsModulusChain::new(
-            pk.a
-                .residues
-                .iter()
-                .map(PolyRq::modulus)
-                .collect(),
-            n,
-        );
+        let chain = RnsModulusChain::new(pk.a.residues.iter().map(PolyRq::modulus).collect(), n);
 
         assert_eq!(
             message.len(),
@@ -108,18 +98,16 @@ impl RnsRlwe {
         let e1 = sample_small_rns_poly(rng, &chain);
         let e2 = sample_small_rns_poly(rng, &chain);
 
-        let u = pk
-            .a
-            .mul_negacyclic(&r)
-            .add(&e1.mul_scalar(PLAINTEXT_MODULUS));
+        let u =
+            pk.a.mul_negacyclic(&r)
+                .add(&e1.mul_scalar(PLAINTEXT_MODULUS));
 
         let message_rns = RnsPoly::from_coeffs(message, &chain);
 
-        let v = pk
-            .b
-            .mul_negacyclic(&r)
-            .add(&e2.mul_scalar(PLAINTEXT_MODULUS))
-            .add(&message_rns);
+        let v =
+            pk.b.mul_negacyclic(&r)
+                .add(&e2.mul_scalar(PLAINTEXT_MODULUS))
+                .add(&message_rns);
 
         RnsCiphertext { u, v }
     }
@@ -140,11 +128,7 @@ impl RnsRlwe {
     //
     // so after centered reconstruction, reducing modulo 17
     // recovers the plaintext.
-    pub fn decrypt(
-        &self,
-        sk: &RnsSecretKey,
-        ciphertext: &RnsCiphertext,
-    ) -> Vec<u64> {
+    pub fn decrypt(&self, sk: &RnsSecretKey, ciphertext: &RnsCiphertext) -> Vec<u64> {
         let n = sk.s.degree;
 
         assert_eq!(
@@ -159,9 +143,7 @@ impl RnsRlwe {
             "ciphertext components must use the same RNS basis"
         );
 
-        let phase = ciphertext
-            .v
-            .sub(&ciphertext.u.mul_negacyclic(&sk.s));
+        let phase = ciphertext.v.sub(&ciphertext.u.mul_negacyclic(&sk.s));
 
         let residue_count = phase.residue_count();
 
@@ -172,10 +154,9 @@ impl RnsRlwe {
         // Full CRT modulus:
         //
         // Q = q0 * q1 * ... * q(L-1)
-        let full_modulus = moduli.iter().fold(
-            BigUint::from(1u64),
-            |acc, &q| acc * BigUint::from(q),
-        );
+        let full_modulus = moduli
+            .iter()
+            .fold(BigUint::from(1u64), |acc, &q| acc * BigUint::from(q));
 
         let half_modulus = &full_modulus >> 1usize;
 
@@ -194,23 +175,14 @@ impl RnsRlwe {
 
             let m_i = &full_modulus / &q_i_big;
 
-            let m_i_mod_q = (&m_i % q_i)
-                .to_u64_digits()
-                .first()
-                .copied()
-                .unwrap_or(0);
+            let m_i_mod_q = (&m_i % q_i).to_u64_digits().first().copied().unwrap_or(0);
 
-            let inverse = mod_inverse_u64(
-                m_i_mod_q,
-                q_i,
-            );
+            let inverse = mod_inverse_u64(m_i_mod_q, q_i);
 
             crt_constants.push((m_i, inverse));
         }
 
-        let full_modulus_mod_plaintext = (
-            &full_modulus % PLAINTEXT_MODULUS
-        )
+        let full_modulus_mod_plaintext = (&full_modulus % PLAINTEXT_MODULUS)
             .to_u64_digits()
             .first()
             .copied()
@@ -223,17 +195,11 @@ impl RnsRlwe {
 
             // CRT reconstruction.
             for residue_index in 0..residue_count {
-                let residue = phase
-                    .residue(residue_index)
-                    .coefficients()[coeff_index];
+                let residue = phase.residue(residue_index).coefficients()[coeff_index];
 
-                let (ref m_i, inverse) =
-                    crt_constants[residue_index];
+                let (ref m_i, inverse) = crt_constants[residue_index];
 
-                let term =
-                    BigUint::from(residue)
-                        * m_i
-                        * BigUint::from(inverse);
+                let term = BigUint::from(residue) * m_i * BigUint::from(inverse);
 
                 x += term;
             }
@@ -241,20 +207,15 @@ impl RnsRlwe {
             x %= &full_modulus;
 
             // Center x into (-Q/2, Q/2].
-            let x_mod_plaintext = (
-                &x % PLAINTEXT_MODULUS
-            )
+            let x_mod_plaintext = (&x % PLAINTEXT_MODULUS)
                 .to_u64_digits()
                 .first()
                 .copied()
                 .unwrap_or(0);
 
             let decoded = if x > half_modulus {
-                (
-                    x_mod_plaintext
-                        + PLAINTEXT_MODULUS
-                        - full_modulus_mod_plaintext
-                ) % PLAINTEXT_MODULUS
+                (x_mod_plaintext + PLAINTEXT_MODULUS - full_modulus_mod_plaintext)
+                    % PLAINTEXT_MODULUS
             } else {
                 x_mod_plaintext
             };
@@ -267,23 +228,14 @@ impl RnsRlwe {
 }
 
 // Samples an independent uniform polynomial in every RNS limb.
-pub(crate) fn sample_uniform_rns_poly<R: RngCore>(
-    rng: &mut R,
-    chain: &RnsModulusChain,
-) -> RnsPoly {
+pub(crate) fn sample_uniform_rns_poly<R: RngCore>(rng: &mut R, chain: &RnsModulusChain) -> RnsPoly {
     let residues = chain
         .moduli
         .iter()
         .map(|&q| {
-            let coeffs: Vec<u64> = (0..chain.degree)
-                .map(|_| rng.next_u64() % q)
-                .collect();
+            let coeffs: Vec<u64> = (0..chain.degree).map(|_| rng.next_u64() % q).collect();
 
-            PolyRq::from_coeffs(
-                &coeffs,
-                chain.degree,
-                q,
-            )
+            PolyRq::from_coeffs(&coeffs, chain.degree, q)
         })
         .collect();
 
@@ -300,26 +252,17 @@ pub(crate) fn sample_uniform_rns_poly<R: RngCore>(
 //     coefficient = (a0 + a1) - (b0 + b1)
 //
 // giving values in {-2,-1,0,1,2}.
-pub(crate) fn sample_small_rns_poly<R: RngCore>(
-    rng: &mut R,
-    chain: &RnsModulusChain,
-) -> RnsPoly {
+pub(crate) fn sample_small_rns_poly<R: RngCore>(rng: &mut R, chain: &RnsModulusChain) -> RnsPoly {
     let degree = chain.degree;
 
     // Sample ONE small integer polynomial in Z.
     //
     // These coefficients are then represented consistently
     // across every RNS modulus.
+    let support = rns_prototype::SMALL_COEFFICIENT_SUPPORT;
+    let cardinality = (2 * support + 1) as u32;
     let small_coeffs: Vec<i64> = (0..degree)
-        .map(|_| {
-            match rng.next_u32() % 5 {
-                0 => -2,
-                1 => -1,
-                2 => 0,
-                3 => 1,
-                _ => 2,
-            }
-        })
+        .map(|_| (rng.next_u32() % cardinality) as i64 - support)
         .collect();
 
     // Lift the same integer polynomial into every RNS limb.
@@ -329,38 +272,19 @@ pub(crate) fn sample_small_rns_poly<R: RngCore>(
         .map(|&q| {
             let coeffs: Vec<u64> = small_coeffs
                 .iter()
-                .map(|&x| {
-                    if x < 0 {
-                        q - (-x as u64)
-                    } else {
-                        x as u64
-                    }
-                })
+                .map(|&x| if x < 0 { q - (-x as u64) } else { x as u64 })
                 .collect();
 
-            PolyRq::from_coeffs(
-                &coeffs,
-                degree,
-                q,
-            )
+            PolyRq::from_coeffs(&coeffs, degree, q)
         })
         .collect();
 
-    RnsPoly {
-        residues,
-        degree,
-    }
+    RnsPoly { residues, degree }
 }
 
 // Modular inverse using the extended Euclidean algorithm.
-fn mod_inverse_u64(
-    value: u64,
-    modulus: u64,
-) -> u64 {
-    assert!(
-        value != 0,
-        "CRT inverse does not exist for zero"
-    );
+fn mod_inverse_u64(value: u64, modulus: u64) -> u64 {
+    assert!(value != 0, "CRT inverse does not exist for zero");
 
     let mut t: i128 = 0;
     let mut new_t: i128 = 1;
@@ -380,11 +304,7 @@ fn mod_inverse_u64(
         new_r = next_r;
     }
 
-    assert_eq!(
-        r,
-        1,
-        "value is not invertible modulo modulus"
-    );
+    assert_eq!(r, 1, "value is not invertible modulo modulus");
 
     if t < 0 {
         t += modulus as i128;

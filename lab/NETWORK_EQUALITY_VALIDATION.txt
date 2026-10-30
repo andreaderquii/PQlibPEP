@@ -1,0 +1,293 @@
+Executed on Linux: release compilation, equality unit test, two existing role tests, toy and paper three-process mTLS integration with positive/negative identifier checks. Docker Compose was not executed in this environment. These are functional checks, not statistical benchmarks.
+
+
+pqpep-equality-build.log
+ Downloading crates ...
+  Downloaded plotters-svg v0.3.7
+  Downloaded ciborium-ll v0.2.2
+  Downloaded is-terminal v0.4.17
+  Downloaded tinytemplate v1.2.1
+  Downloaded clap_lex v1.1.0
+  Downloaded ciborium-io v0.2.2
+  Downloaded same-file v1.0.6
+  Downloaded oorandom v11.1.5
+  Downloaded walkdir v2.5.0
+  Downloaded anes v0.1.6
+  Downloaded itoa v1.0.18
+  Downloaded plotters-backend v0.3.7
+  Downloaded ciborium v0.2.2
+  Downloaded criterion-plot v0.5.0
+  Downloaded zmij v1.0.23
+  Downloaded anstyle v1.0.14
+  Downloaded half v2.7.1
+  Downloaded aho-corasick v1.1.5
+  Downloaded cast v0.3.0
+  Downloaded memchr v2.8.3
+  Downloaded itertools v0.10.5
+  Downloaded criterion v0.5.1
+  Downloaded serde_json v1.0.151
+  Downloaded regex v1.13.1
+  Downloaded clap_builder v4.6.6
+  Downloaded plotters v0.3.7
+  Downloaded clap v4.6.6
+  Downloaded regex-syntax v0.8.11
+  Downloaded regex-automata v0.4.18
+   Compiling rustls v0.23.46
+   Compiling pq-libpep v0.1.0 (/workspace/scratch/9c7a91cf780f/work/roles5/PQlibPEP)
+warning: function `high_digit_coefficients_for_fixed_lhs` is never used
+    --> src/lib/core/bpr12_oblivious.rs:2073:4
+     |
+2073 | fn high_digit_coefficients_for_fixed_lhs(a_value: usize, lagrange: &[[u64; 17]; 17]) -> [u64; 17] {
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `encrypted_radix17_digit_product_from_precomputed_tables` is never used
+    --> src/lib/core/bpr12_oblivious.rs:2624:4
+     |
+2624 | fn encrypted_radix17_digit_product_from_precomputed_tables(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `pq-libpep` (lib) generated 2 warnings
+    Finished `release` profile [optimized] target(s) in 13.45s
+     Running unittests src/bin/pqpep_lab.rs (target/release/deps/pqpep_lab-ec559d05a7236bdf)
+
+running 1 test
+test equality_tests::exact_reference_rejects_corruption_lengths_and_wrong_context ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+pqpep-equality-bin.log
+   Compiling rustls v0.23.46
+   Compiling pq-libpep v0.1.0 (/workspace/scratch/9c7a91cf780f/work/roles5/PQlibPEP)
+warning: function `high_digit_coefficients_for_fixed_lhs` is never used
+    --> src/lib/core/bpr12_oblivious.rs:2073:4
+     |
+2073 | fn high_digit_coefficients_for_fixed_lhs(a_value: usize, lagrange: &[[u64; 17]; 17]) -> [u64; 17] {
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `encrypted_radix17_digit_product_from_precomputed_tables` is never used
+    --> src/lib/core/bpr12_oblivious.rs:2624:4
+     |
+2624 | fn encrypted_radix17_digit_product_from_precomputed_tables(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `pq-libpep` (lib) generated 2 warnings
+    Finished `release` profile [optimized] target(s) in 8.82s
+
+pqpep-equality-role-regression.log
+   Compiling pq-libpep v0.1.0 (/workspace/scratch/9c7a91cf780f/work/roles5/PQlibPEP)
+warning: function `high_digit_coefficients_for_fixed_lhs` is never used
+    --> src/lib/core/bpr12_oblivious.rs:2073:4
+     |
+2073 | fn high_digit_coefficients_for_fixed_lhs(a_value: usize, lagrange: &[[u64; 17]; 17]) -> [u64; 17] {
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `encrypted_radix17_digit_product_from_precomputed_tables` is never used
+    --> src/lib/core/bpr12_oblivious.rs:2624:4
+     |
+2624 | fn encrypted_radix17_digit_product_from_precomputed_tables(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `pq-libpep` (lib) generated 2 warnings
+    Finished `release` profile [optimized] target(s) in 5.10s
+     Running tests/pep_role_separation_test.rs (target/release/deps/pep_role_separation_test-3ce2cb313b82a526)
+
+running 2 tests
+test distinct_role_bundles_roundtrip_preserve_data_and_reject_cross_role_and_replay ... 
+============================================================================
+PEP: LOCAL ROLE SEPARATION CHECK - A / TRANSCRYPTOR / B
+============================================================================
+[ENVIRONMENT] One Rust process, OS process ID=158
+[NETWORK] No host, container, IP endpoint, socket or TLS handshake is started.
+[METHOD] The three roles are distinct objects; bytes are passed through local function calls.
+[AUTH] These APIs assume an authenticated source A; this test does NOT exercise mTLS.
+[SCOPE] Check role-specific materials, serialization, the pipeline and application checks.
+
+[1/8] TOY SETUP USING A TRUSTED OFFLINE DEALER
+      PRF: n=8, N=64, p=32; final PID: 32 bytes / 52 symbols.
+      RLWE: N=64; attribute coefficients belong to Z_17.
+      The dealer sees all secrets during setup; this is not distributed key generation.
+      [A] Bundle with source TFHE/RLWE keys and public routing configuration.
+      [T] Bundle with the CLEAR PRF key, evaluation keys and RLWE rekey material.
+      [B] Bundle with recipient TFHE/RLWE decryption keys and public routing configuration.
+      T's bundle structure does not contain A/B plaintext decryption-key fields.
+      This does not establish collusion resistance of the switching material.
+
+[2/8] WRITE AND RELOAD THE THREE ROLE BUNDLES
+      Wrote three distinct local files to a temporary directory.
+      [PASS] Each parser rejects a bundle tagged for a different role.
+      [PASS] Existing key files cannot be silently overwritten.
+      [PASS] Reconstructed A, T and B from their own files after dropping the original objects.
+
+[3/8] A: ENCRYPT AND PREPARE THE REQUEST
+      A encrypts the PRF input and encrypts 64 attribute coefficients under its own RLWE key.
+      Request for T: 18890 bytes; separate source control for B: 101 bytes.
+      The identifier and secret keys are not printed.
+
+[4/8] T: ROUTE CHECK, PRF EVALUATION, REKEYING AND RERANDOMIZATION
+      [PASS] A modified route is rejected before processing.
+      T evaluates the PRF on encrypted input using its clear PRF key.
+      T applies RLWE rekeying A->B and adds a fresh Enc_B(0).
+      Encrypted response: 858970 bytes.
+      [PASS] An exact request replay is rejected by T's in-memory cache.
+
+[5/8] B: OPEN THE RESPONSE USING THE CONTROL CREATED BY A
+      [PASS] B opens a 32-byte PID for domain-b.
+      [PASS] All 64 decrypted coefficients match A's original attribute exactly.
+      [PASS] B rejects a second opening of the same transaction.
+
+[6/8] NEW REQUEST, SAME ID / DOMAIN / EPOCH
+      [PASS] The previous response is rejected for the new pending control.
+      [PASS] The correct response remains openable after the transaction-mixing attempt.
+      [PASS] The fresh encrypted request yields the same PID and preserves the attribute.
+
+[7/8] ENCRYPTION-KEY ROTATION WITH A PERSISTENT PRF KEY
+      Generation 1/2: fresh TFHE/RLWE keys and fresh evaluation/rekey material.
+      Generation 2/2: fresh TFHE/RLWE keys and fresh evaluation/rekey material.
+      [PASS] The PID is stable across independent encryption setups sharing the PRF key/domain/epoch.
+      This checks consistency across encryption-key rotation, not domain transitivity or RS2.
+
+[8/8] CLEANUP AND RESULT
+      Removed temporary files; this does not prove secure erasure of secrets.
+[PASS] Role bundles, pipeline, route/transaction/replay checks and PID stability passed.
+[TIME] 5.699 s for this functional test, including setup and checks.
+[LIMIT] One process: no host isolation and no network/mTLS verification.
+[LIMIT] Toy parameters; no security, unlinkability or collusion-resistance proof.
+ok
+test transcryptor_rejects_malformed_switching_polynomials_before_processing ... 
+============================================================================
+PEP: REJECT MALFORMED REKEY MATERIAL
+============================================================================
+[ENVIRONMENT] Local validation check; no hosts or network traffic.
+[SETUP] Valid A/B RLWE keys and rekey material with N=64 and base=16.
+[MUTATION] Replaced k0 in the first entry with a dimension-128 polynomial.
+[PASS] The constructor rejects incompatible rekey material before processing any request.
+[LIMIT] This checks parameter compatibility; it does not prove PRE security.
+ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.96s
+
+
+pqpep-equality-smoke-toy.log
+[SETUP] OFFLINE TRUSTED DEALER; profile=toy; sees all secrets during setup
+[SECURITY] Runtime roles will be separate; parameter/deployment security remains unestablished
+[REFERENCE] Offline clear-PRF PID and 64 synthetic coefficients saved for B; no keys changed
+[REFERENCE] Synthetic lab data only; no PRF key/identifier included; equality is functional correctness, not a security proof
+[DONE] Three role-specific bundles saved; provision TLS files separately
+[REFERENCE] Offline clear-PRF PID and 64 synthetic coefficients saved for B; no keys changed
+[REFERENCE] Synthetic lab data only; no PRF key/identifier included; equality is functional correctness, not a security proof
+[1793369306.003] [A] Starting source process; namespace-local process ID=36 (may be 1 inside a container)
+[1793369306.003] [A] Own bundle loaded in 0.000s; source TFHE/RLWE keys, no recipient decryption key or PRF key
+[1793369306.003] [A] Preparing a 32-byte PID request and 64 synthetic attribute coefficients; identifier is not logged
+[1793369306.004] [A] Preparation completed in 0.000s: encrypted PRF inputs + RLWE Enc_A(attribute)
+[1793369306.004] [A] Sending encrypted request: 18890 bytes; separate A->B control: 101 bytes
+[1793369306.004] [A] Connecting to transcryptor at 127.0.0.2:40453
+[1793369306.004] [A] TCP connected: 127.0.0.1:39596 -> 127.0.0.2:40453
+[1793369306.009] [A] TLS handshake completed with transcryptor: server CA/name verified, A client certificate presented, protocol=Some(TLSv1_3)
+[1793369306.009] [A] Sending 18890 application bytes to transcryptor (TLS/framing overhead excluded)
+[1793369306.009] [A] Waiting for transcryptor response
+[1793369307.212] [A] Received 858970 application bytes from transcryptor; exchange wall time=1.209s (connect/TLS/transfer/remote processing)
+[1793369307.213] [A] T returned an encrypted response; A relays it without decrypting B's PID or attributes
+[1793369307.213] [A] Delivering A's own pending control plus encrypted response to B: 859075 bytes
+[1793369307.213] [A] Connecting to recipient at 127.0.0.3:38417
+[1793369307.213] [A] TCP connected: 127.0.0.1:52628 -> 127.0.0.3:38417
+[1793369307.217] [A] TLS handshake completed with recipient: server CA/name verified, A client certificate presented, protocol=Some(TLSv1_3)
+[1793369307.217] [A] Sending 859075 application bytes to recipient (TLS/framing overhead excluded)
+[1793369307.218] [A] Waiting for recipient response
+[1793369307.220] [A] Received 8 application bytes from recipient; exchange wall time=0.007s (connect/TLS/transfer/remote processing)
+[1793369307.220] [A] [PASS] B acknowledged EXACT PID and ALL attribute equality against the offline reference. Plaintext/PID remain at B.
+[1793369307.220] [A] Request-to-acknowledgment wall time=1.216s; includes preparation, both TLS exchanges and remote processing; excludes role-bundle loading/offline setup
+
+[PASS] Wrong identifier rejected at B: no verified acknowledgment returned.
+[PASS] A/T/B ran in distinct processes and exchanged actual ciphertexts over mTLS.
+[PASS] CA-signed recipient certificate rejected at the source-only transcryptor endpoint.
+[1793369305.752] [B] Starting recipient process; namespace-local process ID=35 (may be 1 inside a container)
+[1793369305.752] [B] Offline synthetic reference loaded; exact PID/attribute equality is mandatory before acknowledgment
+[1793369305.752] [B] Own bundle loaded in 0.000s; recipient TFHE/RLWE decryption keys, no source secret or PRF key
+[1793369305.753] [B] [READY] mTLS listener 127.0.0.3:38417; only provisioned source A is authorized
+[1793369307.213] [B] TCP accepted: peer=127.0.0.1:52628 -> local=127.0.0.3:38417
+[1793369307.218] [B] mTLS authenticated and authorized A: client CA verified and leaf certificate matched; protocol=Some(TLSv1_3)
+[1793369307.219] [B] Received 859075 application bytes from A
+[1793369307.219] [B] Delivery from authenticated A: control=101 bytes, encrypted response=858970 bytes
+[1793369307.219] [B] Checking A's pending context/transaction/batch and replay state, then decrypting the PID and RLWE attribute
+[1793369307.220] [B] [PASS] PID equality: all 32 bytes match the offline CLEAR-PRF reference
+[1793369307.220] [B] [PASS] Attribute equality: ALL 64/64 coefficients match the original synthetic payload after RLWE rekeying + rerandomization
+[1793369307.220] [B] Reference comparison completed in 0.000006s (separate from response opening)
+[1793369307.220] [B] Opened response: PID=9403a7e735cdf7f1aace1c652c95f3dcebaffbc55acf6c064420e28b77ed1db5; attributes=64 coefficients; domain=research-b; epoch=1
+[1793369307.220] [B] Response opening completed in 0.001s; this timer excludes TLS/network transfer
+[1793369307.220] [B] Returning only the 'verified' acknowledgment after BOTH exact comparisons passed; no plaintext/PID is included
+[1793369307.220] [B] Sending 8 application bytes back to A
+[1793369307.220] [B] Connection to A completed
+[1793369308.464] [B] TCP accepted: peer=127.0.0.1:55606 -> local=127.0.0.3:38417
+[1793369308.468] [B] mTLS authenticated and authorized A: client CA verified and leaf certificate matched; protocol=Some(TLSv1_3)
+[1793369308.469] [B] Received 859075 application bytes from A
+[1793369308.469] [B] Delivery from authenticated A: control=101 bytes, encrypted response=858970 bytes
+[1793369308.469] [B] Checking A's pending context/transaction/batch and replay state, then decrypting the PID and RLWE attribute
+[B] [REJECT] PID equality FAILED against offline clear-PRF reference
+[1793369308.470] [B] Connection to A completed
+
+
+pqpep-equality-smoke-paper.log
+[SETUP] OFFLINE TRUSTED DEALER; profile=paper; sees all secrets during setup
+[SECURITY] Runtime roles will be separate; parameter/deployment security remains unestablished
+[REFERENCE] Offline clear-PRF PID and 256 synthetic coefficients saved for B; no keys changed
+[REFERENCE] Synthetic lab data only; no PRF key/identifier included; equality is functional correctness, not a security proof
+[DONE] Three role-specific bundles saved; provision TLS files separately
+[REFERENCE] Offline clear-PRF PID and 256 synthetic coefficients saved for B; no keys changed
+[REFERENCE] Synthetic lab data only; no PRF key/identifier included; equality is functional correctness, not a security proof
+[1793369344.012] [A] Starting source process; namespace-local process ID=36 (may be 1 inside a container)
+[1793369344.013] [A] Own bundle loaded in 0.000s; source TFHE/RLWE keys, no recipient decryption key or PRF key
+[1793369344.013] [A] Preparing a 32-byte PID request and 256 synthetic attribute coefficients; identifier is not logged
+[1793369344.027] [A] Preparation completed in 0.015s: encrypted PRF inputs + RLWE Enc_A(attribute)
+[1793369344.027] [A] Sending encrypted request: 860618 bytes; separate A->B control: 101 bytes
+[1793369344.027] [A] Connecting to transcryptor at 127.0.0.2:60039
+[1793369344.028] [A] TCP connected: 127.0.0.1:51906 -> 127.0.0.2:60039
+[1793369344.032] [A] TLS handshake completed with transcryptor: server CA/name verified, A client certificate presented, protocol=Some(TLSv1_3)
+[1793369344.032] [A] Sending 860618 application bytes to transcryptor (TLS/framing overhead excluded)
+[1793369344.032] [A] Waiting for transcryptor response
+[1793369388.831] [A] Received 27273050 application bytes from transcryptor; exchange wall time=44.804s (connect/TLS/transfer/remote processing)
+[1793369388.840] [A] T returned an encrypted response; A relays it without decrypting B's PID or attributes
+[1793369388.854] [A] Delivering A's own pending control plus encrypted response to B: 27273155 bytes
+[1793369388.854] [A] Connecting to recipient at 127.0.0.3:50661
+[1793369388.854] [A] TCP connected: 127.0.0.1:48776 -> 127.0.0.3:50661
+[1793369388.859] [A] TLS handshake completed with recipient: server CA/name verified, A client certificate presented, protocol=Some(TLSv1_3)
+[1793369388.859] [A] Sending 27273155 application bytes to recipient (TLS/framing overhead excluded)
+[1793369388.881] [A] Waiting for recipient response
+[1793369388.913] [A] Received 8 application bytes from recipient; exchange wall time=0.059s (connect/TLS/transfer/remote processing)
+[1793369388.913] [A] [PASS] B acknowledged EXACT PID and ALL attribute equality against the offline reference. Plaintext/PID remain at B.
+[1793369388.913] [A] Request-to-acknowledgment wall time=44.900s; includes preparation, both TLS exchanges and remote processing; excludes role-bundle loading/offline setup
+
+[PASS] Wrong identifier rejected at B: no verified acknowledgment returned.
+[PASS] A/T/B ran in distinct processes and exchanged actual ciphertexts over mTLS.
+[PASS] CA-signed recipient certificate rejected at the source-only transcryptor endpoint.
+[1793369343.762] [B] Starting recipient process; namespace-local process ID=35 (may be 1 inside a container)
+[1793369343.762] [B] Offline synthetic reference loaded; exact PID/attribute equality is mandatory before acknowledgment
+[1793369343.762] [B] Own bundle loaded in 0.001s; recipient TFHE/RLWE decryption keys, no source secret or PRF key
+[1793369343.762] [B] [READY] mTLS listener 127.0.0.3:50661; only provisioned source A is authorized
+[1793369388.854] [B] TCP accepted: peer=127.0.0.1:48776 -> local=127.0.0.3:50661
+[1793369388.859] [B] mTLS authenticated and authorized A: client CA verified and leaf certificate matched; protocol=Some(TLSv1_3)
+[1793369388.886] [B] Received 27273155 application bytes from A
+[1793369388.886] [B] Delivery from authenticated A: control=101 bytes, encrypted response=27273050 bytes
+[1793369388.886] [B] Checking A's pending context/transaction/batch and replay state, then decrypting the PID and RLWE attribute
+[1793369388.912] [B] [PASS] PID equality: all 32 bytes match the offline CLEAR-PRF reference
+[1793369388.912] [B] [PASS] Attribute equality: ALL 256/256 coefficients match the original synthetic payload after RLWE rekeying + rerandomization
+[1793369388.912] [B] Reference comparison completed in 0.000026s (separate from response opening)
+[1793369388.912] [B] Opened response: PID=3d3f7c264dbd0f71b56f222850167fdcaa87dbed09b96c2f84aa563949823405; attributes=256 coefficients; domain=research-b; epoch=1
+[1793369388.912] [B] Response opening completed in 0.026s; this timer excludes TLS/network transfer
+[1793369388.912] [B] Returning only the 'verified' acknowledgment after BOTH exact comparisons passed; no plaintext/PID is included
+[1793369388.912] [B] Sending 8 application bytes back to A
+[1793369388.912] [B] Connection to A completed
+[1793369434.075] [B] TCP accepted: peer=127.0.0.1:51456 -> local=127.0.0.3:50661
+[1793369434.079] [B] mTLS authenticated and authorized A: client CA verified and leaf certificate matched; protocol=Some(TLSv1_3)
+[1793369434.092] [B] Received 27273155 application bytes from A
+[1793369434.092] [B] Delivery from authenticated A: control=101 bytes, encrypted response=27273050 bytes
+[1793369434.092] [B] Checking A's pending context/transaction/batch and replay state, then decrypting the PID and RLWE attribute
+[B] [REJECT] PID equality FAILED against offline clear-PRF reference
+[1793369434.118] [B] Connection to A completed
+

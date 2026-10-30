@@ -14,10 +14,7 @@ pub fn bytes_to_bits(bytes: &[u8]) -> Vec<u8> {
 
 pub fn string_to_id(input: &str) -> [u8; 32] {
     let bytes = input.as_bytes();
-    assert!(
-        bytes.len() <= 32,
-        "string is too long for a 32-byte ID"
-    );
+    assert!(bytes.len() <= 32, "string is too long for a 32-byte ID");
     let mut id = [0u8; 32];
     id[..bytes.len()].copy_from_slice(bytes);
     id

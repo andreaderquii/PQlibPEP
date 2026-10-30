@@ -1,0 +1,221 @@
+Verifica della patch di separazione dei ruoli, 30 ottobre 2026.
+Ambiente: Linux x86_64, rustc 1.99.1 (58cf8f9c3 2026-10-13).
+
+CHECK DI COMPILAZIONE
+Cargo check --locked: default lib, feature fast-prf-tfhe-private-input e nuova feature pep-role-lab: tutti riusciti.
+Ultimo check nuova API/bin/test:
+    Checking pq-libpep v0.1.0 (/workspace/scratch/9c7a91cf780f/work/roles5/PQlibPEP)
+warning: function `high_digit_coefficients_for_fixed_lhs` is never used
+    --> src/lib/core/bpr12_oblivious.rs:2073:4
+     |
+2073 | fn high_digit_coefficients_for_fixed_lhs(a_value: usize, lagrange: &[[u64; 17]; 17]) -> [u64; 17] {
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `encrypted_radix17_digit_product_from_precomputed_tables` is never used
+    --> src/lib/core/bpr12_oblivious.rs:2624:4
+     |
+2624 | fn encrypted_radix17_digit_product_from_precomputed_tables(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `pq-libpep` (lib) generated 2 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.85s
+
+TEST RELEASE
+Comando effettivo locale:
+CARGO_BUILD_JOBS=1 cargo test --locked --release --config profile.release.package.pq-libpep.codegen-units=1 --features pep-role-lab --test pep_role_separation_test --test pep_api_test --test fast_lwr_prf_pep_hybrid_pipeline_test -- --nocapture --test-threads=1
+Override codegen locale usato dopo un errore transitorio del compilatore durante la creazione di archivi rlib; non modifica parametri o circuito.
+7 passati, 1 test paper legacy ignorato (non richiesto in questa suite).
+
+   Compiling pq-libpep v0.1.0 (/workspace/scratch/9c7a91cf780f/work/roles5/PQlibPEP)
+warning: function `high_digit_coefficients_for_fixed_lhs` is never used
+    --> src/lib/core/bpr12_oblivious.rs:2073:4
+     |
+2073 | fn high_digit_coefficients_for_fixed_lhs(a_value: usize, lagrange: &[[u64; 17]; 17]) -> [u64; 17] {
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `encrypted_radix17_digit_product_from_precomputed_tables` is never used
+    --> src/lib/core/bpr12_oblivious.rs:2624:4
+     |
+2624 | fn encrypted_radix17_digit_product_from_precomputed_tables(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `pq-libpep` (lib) generated 2 warnings
+    Finished `release` profile [optimized] target(s) in 29.81s
+     Running tests/fast_lwr_prf_pep_hybrid_pipeline_test.rs (target/release/deps/fast_lwr_prf_pep_hybrid_pipeline_test-26fdd9da134113d1)
+
+running 5 tests
+test hybrid_rejects_complete_foreign_batch_and_foreign_source ... ok
+test hybrid_request_rejects_corrupt_headers_slots_and_rlwe_encoding ... ok
+test hybrid_response_rejects_corrupt_headers_count_order_and_rlwe_encoding ... ok
+test paper_hybrid_transaction_round_trip_binds_32_byte_pseudonym_and_payload ... ignored, paper LWR parameters; 52-symbol TFHE request/response plus RLWE PRE
+test toy_hybrid_transaction_round_trip_binds_pseudonym_and_payload ... ok
+
+test result: ok. 4 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 18.46s
+
+     Running tests/pep_api_test.rs (target/release/deps/pep_api_test-4512b99d5bf3f4e6)
+
+running 1 test
+test canonical_input_produces_domain_pseudonym_and_preserves_attribute ... 
+===========================================================================
+              PQLIBPEP - TOY END-TO-END PIPELINE
+===========================================================================
+
+[1/8] CRYPTOGRAPHIC PARAMETERS
+  Mode                : TOY / functional validation
+  LWR dimension       : 8
+  LWR ring dimension  : 64
+  LWR output modulus  : 32
+  RLWE ring dimension : 64
+  RLWE modulus Q      : 998244353
+  PRF output          : 256 bits / 32 bytes
+  PRF symbols         : 52
+  Security preset     : NOT production-secure
+
+[2/8] TFHE + DEPTH-1 LWR PRF SETUP
+  [OK] LWR PRF secret key generated
+  [OK] TFHE client initialized
+  [OK] TFHE evaluator initialized
+  [OK] Recipient TFHE key initialized
+  Setup time: 600.503504ms
+
+[3/8] PEP DOMAIN CONTEXT
+  Domain              : DomainId("research-a")
+  Identifier namespace: hospital-patient-id
+  Identifier value    : patient-001
+  Context version     : 1
+  [OK] Canonical identifier encoded
+  [OK] Reference PRF evaluated
+  Reference evaluation time: 69.123µs
+  Expected pseudonym (hex):
+  de0085aac9e37c646eb0a55dcbcc743e8937bed010d41ee3319eb44ce5f21db1
+
+[4/8] RLWE ENCRYPTION AND REKEYING SETUP
+  [OK] Source RLWE key pair generated
+  [OK] Recipient RLWE key pair generated
+  Attribute coefficients: 64
+  First 16 coefficients : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+  [OK] Attribute encrypted under SOURCE public key
+  [OK] Rekey material generated: SOURCE -> RECIPIENT
+  Rekey decomposition parameter: 4
+  RLWE setup time: 1.621873ms
+
+[5/8] PEP ARCHITECTURE INITIALIZATION
+  [OK] PEP Source initialized
+  [OK] PEP Transcryptor initialized
+  [OK] PEP Recipient initialized
+
+  Architecture:
+    SOURCE -> TRANSCRYPTOR -> RECIPIENT
+    PRF branch  : encrypted ID -> TFHE evaluation
+    RLWE branch : encrypted attribute -> rekeying
+
+[6/8] PEP SOURCE - REQUEST PREPARATION
+  [OK] Canonical identifier prepared
+  [OK] Private-input PRF request prepared
+  [OK] Encrypted attribute included
+  Request size: 18858 bytes
+  Preparation time: 598.422µs
+
+[7/8] PEP TRANSCRYPTOR - HOMOMORPHIC PROCESSING
+  Processing encrypted request...
+  Expected logical operations:
+    - TFHE private-input LWR PRF evaluation
+    - RLWE attribute rekeying A -> B
+    - RLWE ciphertext rerandomization
+  [OK] Transcryptor evaluation completed
+  Response size: 858970 bytes
+  Transcryptor time: 2.587350593s
+
+[8/8] PEP RECIPIENT - DECRYPTION AND VALIDATION
+  [OK] Response opened successfully
+
+  PRF RESULT
+  Expected PID : de0085aac9e37c646eb0a55dcbcc743e8937bed010d41ee3319eb44ce5f21db1
+  Actual PID   : de0085aac9e37c646eb0a55dcbcc743e8937bed010d41ee3319eb44ce5f21db1
+  [PASS] TFHE pseudonym matches reference PRF
+  [PASS] Pseudonym belongs to expected domain
+
+  RLWE ATTRIBUTE RESULT
+  Original coefficients : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+  Decrypted coefficients: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+  [PASS] RLWE attribute preserved after rekeying
+  Recipient time: 781.084µs
+
+[SECURITY CHECKS] CONTEXT AND BATCH CONSISTENCY
+  [PASS] Old response rejected for another pending batch
+  [PASS] Modified request context rejected
+  [PASS] Modified response rejected
+  Validation time: 458.265µs
+
+===========================================================================
+                     FINAL TEST SUMMARY
+===========================================================================
+  [PASS] Domain-specific pseudonym generation
+  [PASS] TFHE private-input PRF evaluation
+  [PASS] RLWE attribute encryption
+  [PASS] RLWE proxy re-encryption
+  [PASS] Recipient attribute recovery
+  [PASS] Reference pseudonym equality
+  [PASS] Domain consistency
+  [PASS] Pending batch mismatch rejection
+  [PASS] Request context mutation rejection
+  [PASS] Response mutation rejection
+
+  TFHE setup time       : 3.191465224s
+  Transcryptor time     : 2.587350593s
+  Total elapsed time    : 3.19166199s
+
+  RESULT: ALL FUNCTIONAL TOY CHECKS PASSED
+  NOTE: Collusion resistance and production security
+        are NOT established by this test.
+===========================================================================
+
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.20s
+
+     Running tests/pep_role_separation_test.rs (target/release/deps/pep_role_separation_test-ee7901a0e40db164)
+
+running 2 tests
+test distinct_role_bundles_roundtrip_preserve_data_and_reject_cross_role_and_replay ... [PASS] Separate A/T/B bundle reload, exact attributes, stable PID, wrong-role/route/batch and replay rejection
+ok
+test transcryptor_rejects_malformed_switching_polynomials_before_processing ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.05s
+
+
+TRE PROCESSI NATIVI, mTLS, PROFILO TOY
+python3 lab/smoke_local.py
+[SETUP] OFFLINE TRUSTED DEALER; profile=toy; sees all secrets during setup
+[SECURITY] Runtime roles will be separate; parameter/deployment security remains unestablished
+[DONE] Three role-specific bundles saved; provision TLS files separately
+[A] Sending encrypted request: 18890 bytes
+[A] B acknowledged opening. Plaintext/PID remain at B.
+
+[PASS] A/T/B ran in distinct processes and exchanged actual ciphertexts over mTLS.
+[PASS] CA-signed recipient certificate rejected at the source-only transcryptor endpoint.
+[READY] mTLS listener 127.0.0.3:51957; only provisioned source A is authorized
+[B] Opened response: PID=a05778a46ab20451b42c71d37aee3f2469803b074c0a6e303b92edb1d8f5c345; attributes=64 coefficients; domain=research-b
+
+
+TRE PROCESSI NATIVI, mTLS, PROFILO PAPER
+python3 lab/smoke_local.py --profile paper
+[SETUP] OFFLINE TRUSTED DEALER; profile=paper; sees all secrets during setup
+[SECURITY] Runtime roles will be separate; parameter/deployment security remains unestablished
+[DONE] Three role-specific bundles saved; provision TLS files separately
+[A] Sending encrypted request: 860618 bytes
+[A] B acknowledged opening. Plaintext/PID remain at B.
+
+[PASS] A/T/B ran in distinct processes and exchanged actual ciphertexts over mTLS.
+[PASS] CA-signed recipient certificate rejected at the source-only transcryptor endpoint.
+[READY] mTLS listener 127.0.0.3:51489; only provisioned source A is authorized
+[B] Opened response: PID=ae60896c0d4dc934a87062bb17d77575d7c74c5236e318374af8293211ae43bd; attributes=256 coefficients; domain=research-b
+
+
+Docker non presente in questo ambiente: Compose validato staticamente (tre IP distinti, rete internal, nessuna porta pubblicata). Script certificati verificato con sh -n e usato realmente nei test mTLS. Non è stato eseguito docker compose qui.
+
+Nessun benchmark ripetuto, stima di sicurezza o prova di collusione-resistenza è stata derivata da questi controlli.

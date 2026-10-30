@@ -1,8 +1,19 @@
 use crate::algebra::ntt::{mod_inverse, ConcreteNttContext};
 use nc_polynomial::{RingContext, RingElem};
+use crate::parameters::rlwe_prototype::CIPHERTEXT_MODULUS;
 
-/// Default modulus used by the current RLWE tests.
-pub const Q: u64 = 998_244_353;
+use std::cell::RefCell;
+use std::collections::HashMap;
+
+std::thread_local! {
+    static CONCRETE_NTT_CONTEXT_CACHE:
+        RefCell<HashMap<(usize, u64), ConcreteNttContext>> =
+        RefCell::new(HashMap::new());
+}
+
+/// Compatibility alias for the current scalar RLWE prototype modulus.
+/// Canonical declaration: [`crate::parameters::rlwe_prototype`].
+pub const Q: u64 = CIPHERTEXT_MODULUS;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PolyRq {
@@ -25,10 +36,7 @@ impl PolyRq {
     pub fn from_coeffs(coeffs: &[u64], n: usize, q: u64) -> Self {
         assert!(n > 0, "polynomial degree must be greater than zero");
         assert!(q >= 2, "modulus q must be >= 2");
-        assert!(
-            coeffs.len() <= n + 1,
-            "too many coefficients for PolyRq"
-        );
+        assert!(coeffs.len() <= n + 1, "too many coefficients for PolyRq");
 
         // nc-polynomial historically exposes n+1 coefficients, with the
         // coefficient of X^n equal to zero after reduction modulo X^n + 1.
@@ -99,8 +107,7 @@ impl PolyRq {
         let mut result = vec![0u64; n + 1];
 
         for i in 0..n {
-            result[i] = ((self.coeffs[i] as u128 + other.coeffs[i] as u128)
-                % q as u128) as u64;
+            result[i] = ((self.coeffs[i] as u128 + other.coeffs[i] as u128) % q as u128) as u64;
         }
 
         Self {
@@ -123,11 +130,7 @@ impl PolyRq {
             let a = self.coeffs[i];
             let b = other.coeffs[i];
 
-            result[i] = if a >= b {
-                a - b
-            } else {
-                q - (b - a)
-            };
+            result[i] = if a >= b { a - b } else { q - (b - a) };
         }
 
         Self {
@@ -146,8 +149,7 @@ impl PolyRq {
         let mut result = vec![0u64; n + 1];
 
         for i in 0..n {
-            result[i] =
-                ((self.coeffs[i] as u128 * scalar as u128) % q as u128) as u64;
+            result[i] = ((self.coeffs[i] as u128 * scalar as u128) % q as u128) as u64;
         }
 
         Self {
@@ -171,24 +173,19 @@ impl PolyRq {
 
         for i in 0..n {
             for j in 0..n {
-                let product =
-                    (self.coeffs[i] as u128 * other.coeffs[j] as u128)
-                        % q as u128;
+                let product = (self.coeffs[i] as u128 * other.coeffs[j] as u128) % q as u128;
 
                 let index = i + j;
 
                 if index < n {
-                    result[index] =
-                        ((result[index] as u128 + product) % q as u128) as u64;
+                    result[index] = ((result[index] as u128 + product) % q as u128) as u64;
                 } else {
                     // X^n = -1, therefore terms with degree >= n
                     // wrap around with a minus sign.
                     let wrapped = index - n;
 
-                    result[wrapped] = (
-                        (result[wrapped] as u128 + q as u128 - product)
-                            % q as u128
-                    ) as u64;
+                    result[wrapped] =
+                        ((result[wrapped] as u128 + q as u128 - product) % q as u128) as u64;
                 }
             }
         }
@@ -223,23 +220,27 @@ impl PolyRq {
         let mut a = self.coeffs[..n].to_vec();
         let mut b = other.coeffs[..n].to_vec();
 
-        let ctx = ConcreteNttContext::new(n, q);
+        CONCRETE_NTT_CONTEXT_CACHE.with(|cache| {
+            let mut cache = cache.borrow_mut();
 
-        ctx.forward(&mut a);
-        ctx.forward(&mut b);
+            let ctx = cache
+                .entry((n, q))
+                .or_insert_with(|| ConcreteNttContext::new(n, q));
 
-        for i in 0..n {
-            a[i] =
-                ((a[i] as u128 * b[i] as u128) % q as u128) as u64;
-        }
+            ctx.forward(&mut a);
+            ctx.forward(&mut b);
 
-        ctx.inverse(&mut a);
+            for i in 0..n {
+                a[i] = ((a[i] as u128 * b[i] as u128) % q as u128) as u64;
+            }
+
+            ctx.inverse(&mut a);
+        });
 
         let n_inv = mod_inverse(n as u64, q);
 
         for x in &mut a {
-            *x =
-                ((*x as u128 * n_inv as u128) % q as u128) as u64;
+            *x = ((*x as u128 * n_inv as u128) % q as u128) as u64;
         }
 
         Self::from_coeffs(&a, n, q)
@@ -254,25 +255,16 @@ impl PolyRq {
     }
 
     pub fn neg(&self) -> PolyRq {
-    let q = self.modulus();
+        let q = self.modulus();
 
-    let coeffs: Vec<u64> = self.coefficients()
-        .iter()
-        .map(|&x| {
-            if x == 0 {
-                0
-            } else {
-                q - x
-            }
-        })
-        .collect();
+        let coeffs: Vec<u64> = self
+            .coefficients()
+            .iter()
+            .map(|&x| if x == 0 { 0 } else { q - x })
+            .collect();
 
-    PolyRq::from_coeffs(
-        &coeffs,
-        self.degree_bound(),
-        q,
-    )
-}
+        PolyRq::from_coeffs(&coeffs, self.degree_bound(), q)
+    }
 }
 
 /// Creates the ring
@@ -289,8 +281,7 @@ pub fn context(n: usize, q: u64) -> RingContext {
     modulus_poly[0] = 1;
     modulus_poly[n] = 1;
 
-    RingContext::from_parts(n, q, &modulus_poly, 3)
-        .expect("invalid RLWE ring parameters")
+    RingContext::from_parts(n, q, &modulus_poly, 3).expect("invalid RLWE ring parameters")
 }
 
 /// Backward-compatible helper for the current RLWE implementation.
@@ -316,8 +307,7 @@ pub fn round_poly(poly: &PolyRq, p: u64) -> PolyRq {
         .map(|&x| {
             let numerator = x as u128 * p as u128;
 
-            let rounded =
-                (numerator + (q as u128 / 2)) / q as u128;
+            let rounded = (numerator + (q as u128 / 2)) / q as u128;
 
             (rounded % p as u128) as u64
         })

@@ -9,43 +9,19 @@
 
 use rand::RngCore;
 
-use crate::algebra::ring::PolyRq;
-use crate::core::rlwe_rns::{
-    RnsCiphertext,
-    RnsKeyGenResult,
-    RnsPublicKey,
-    RnsRlwe,
-    RnsSecretKey,
-};
-use crate::core::rns::{
-    RnsModulusChain,
-    RnsPoly,
-    RNS_RING_DIMENSION,
-};
-use crate::core::rns_rlwe_he::{
-    RnsRelinearizationKey,
-    RnsRlweHe,
-};
+use crate::core::rns_rlwe_he::{RnsAutomorphismKey, RnsRelinearizationKey, RnsRlweHe};
 
-pub const HE_PLAINTEXT_MODULUS: u64 = 17;
+use crate::algebra::ring::PolyRq;
+use crate::core::rlwe_rns::{RnsCiphertext, RnsKeyGenResult, RnsPublicKey, RnsRlwe, RnsSecretKey};
+use crate::core::rns::{RnsModulusChain, RnsPoly, RNS_RING_DIMENSION};
+use crate::parameters::rns_rlwe_he_prototype as parameter_profile;
+
+pub const HE_PLAINTEXT_MODULUS: u64 = parameter_profile::PLAINTEXT_MODULUS;
 
 // Twelve ~23-bit RNS primes provide eight complete multiplication/switching
 // levels while retaining four primes at the output of level 8. These are
 // functional prototype parameters, not a security preset.
-const DEFAULT_HE_RNS_MODULI: [u64; 12] = [
-    8_416_769,
-    8_434_177,
-    8_573_441,
-    8_599_553,
-    8_782_337,
-    8_825_857,
-    8_834_561,
-    8_860_673,
-    8_904_193,
-    9_113_089,
-    9_139_201,
-    9_165_313,
-];
+const DEFAULT_HE_RNS_MODULI: [u64; 12] = parameter_profile::MODULI;
 
 /// RNS ciphertext plus its level (number of dropped RNS primes).
 pub struct HeCiphertext {
@@ -71,6 +47,16 @@ pub type HeModulusChain = RnsModulusChain;
 /// A relinearization key matching each active RNS prefix/level.
 pub struct HeRelinearizationKeyChain {
     pub keys: Vec<RnsRelinearizationKey>,
+}
+
+/// An automorphism key matching each active RNS prefix/level.
+///
+/// The existing single-key API remains available for level-0 callers.
+/// Recursive packed BPR12 evaluation also needs automorphisms after
+/// ciphertext multiplication, so this chain stores a separately generated
+/// key-switching key for every possible ciphertext level.
+pub struct HeAutomorphismKeyChain {
+    pub keys: Vec<RnsAutomorphismKey>,
 }
 
 /// RNS-backed evaluator for plaintext modulus 17.
@@ -137,12 +123,7 @@ impl RlweHe {
         HeCiphertext::new(self.engine.encrypt(rng, public_key, message), 0)
     }
 
-    pub fn decrypt(
-        &self,
-        secret_key: &HeSecretKey,
-        ciphertext: &HeCiphertext,
-        n: usize,
-    ) -> PolyRq {
+    pub fn decrypt(&self, secret_key: &HeSecretKey, ciphertext: &HeCiphertext, n: usize) -> PolyRq {
         self.assert_degree(n);
         self.assert_ciphertext(ciphertext);
         assert!(
@@ -204,14 +185,126 @@ impl RlweHe {
         HeRelinearizationKeyChain { keys }
     }
 
-    pub fn add_ciphertexts(
+    pub fn generate_automorphism_key<R: RngCore>(
         &self,
-        lhs: &HeCiphertext,
-        rhs: &HeCiphertext,
+        rng: &mut R,
+        secret_key: &HeSecretKey,
+        exponent: usize,
+        base_bits: usize,
+    ) -> RnsAutomorphismKey {
+        assert_eq!(
+            secret_key.s.residue_count(),
+            self.moduli.len(),
+            "secret key must use the full RNS basis"
+        );
+        assert_eq!(secret_key.s.degree, self.degree);
+
+        self.he_engine
+            .generate_automorphism_key(rng, secret_key, exponent, base_bits)
+    }
+
+    /// Generate automorphism key-switching keys for every ciphertext level.
+    ///
+    /// Each key is generated against the matching prefix of the secret key and
+    /// RNS basis, mirroring `generate_relinearization_key_chain`. This lets a
+    /// ciphertext at level L be automorphed without pretending it still has the
+    /// full level-0 RNS basis.
+    pub fn generate_automorphism_key_chain<R: RngCore>(
+        &self,
+        rng: &mut R,
+        secret_key: &HeSecretKey,
+        exponent: usize,
+        base_bits: usize,
+    ) -> HeAutomorphismKeyChain {
+        assert_eq!(
+            secret_key.s.residue_count(),
+            self.moduli.len(),
+            "secret key must use the evaluator's full RNS basis"
+        );
+        assert_eq!(secret_key.s.degree, self.degree);
+
+        let mut keys = Vec::with_capacity(self.max_level() + 1);
+        for level in 0..=self.max_level() {
+            let active_len = self.active_len(level);
+            let level_sk = RnsSecretKey {
+                s: RnsPoly {
+                    residues: secret_key.s.residues[..active_len].to_vec(),
+                    degree: self.degree,
+                },
+            };
+            let key = self
+                .he_engine
+                .generate_automorphism_key(rng, &level_sk, exponent, base_bits);
+            assert_eq!(
+                key.moduli.as_slice(),
+                &self.moduli[..active_len],
+                "automorphism key was generated for the wrong RNS prefix"
+            );
+            keys.push(key);
+        }
+
+        HeAutomorphismKeyChain { keys }
+    }
+
+    pub fn apply_automorphism(
+        &self,
+        ciphertext: &HeCiphertext,
+        key: &RnsAutomorphismKey,
     ) -> HeCiphertext {
+        self.assert_ciphertext(ciphertext);
+
+        assert_eq!(
+            ciphertext.level, 0,
+            "initial automorphism implementation supports only level 0"
+        );
+        assert_eq!(key.degree, self.degree);
+        assert_eq!(
+            key.moduli.as_slice(),
+            self.moduli.as_slice(),
+            "automorphism key must use the evaluator's full RNS basis"
+        );
+
+        let transformed = self
+            .he_engine
+            .apply_automorphism(&ciphertext.ciphertext, key);
+
+        HeCiphertext::new(transformed, ciphertext.level)
+    }
+
+    /// Apply an automorphism using the key-switching key for the ciphertext's
+    /// current level. Unlike `apply_automorphism`, this supports levels above 0.
+    pub fn apply_automorphism_with_key_chain(
+        &self,
+        ciphertext: &HeCiphertext,
+        keys: &HeAutomorphismKeyChain,
+    ) -> HeCiphertext {
+        self.assert_ciphertext(ciphertext);
+        let active_len = self.active_len(ciphertext.level);
+        let key = keys
+            .keys
+            .get(ciphertext.level)
+            .expect("missing automorphism key for ciphertext level");
+
+        assert_eq!(key.degree, self.degree);
+        assert_eq!(
+            key.moduli.as_slice(),
+            &self.moduli[..active_len],
+            "automorphism key does not match ciphertext's active RNS basis"
+        );
+
+        let transformed = self
+            .he_engine
+            .apply_automorphism(&ciphertext.ciphertext, key);
+        HeCiphertext::new(transformed, ciphertext.level)
+    }
+
+    pub fn add_ciphertexts(&self, lhs: &HeCiphertext, rhs: &HeCiphertext) -> HeCiphertext {
         self.assert_ciphertext(lhs);
         self.assert_ciphertext(rhs);
-        assert_eq!(lhs.level, rhs.level, "ciphertexts must be at the same level");
+        assert_eq!(
+            lhs.level, rhs.level,
+            "ciphertexts must be at the same level"
+        );
         HeCiphertext::new(
             RnsCiphertext {
                 u: lhs.ciphertext.u.add(&rhs.ciphertext.u),
@@ -222,11 +315,7 @@ impl RlweHe {
     }
 
     /// Add an unencrypted R_17 polynomial without consuming a level.
-    pub fn add_plaintext(
-        &self,
-        ciphertext: &HeCiphertext,
-        plaintext: &PolyRq,
-    ) -> HeCiphertext {
+    pub fn add_plaintext(&self, ciphertext: &HeCiphertext, plaintext: &PolyRq) -> HeCiphertext {
         self.assert_ciphertext(ciphertext);
         let plain_rns = self.plaintext_at_level(plaintext, ciphertext.level);
         HeCiphertext::new(
@@ -239,11 +328,7 @@ impl RlweHe {
     }
 
     /// Multiply by an unencrypted R_17 polynomial without consuming a level.
-    pub fn mul_plaintext(
-        &self,
-        ciphertext: &HeCiphertext,
-        plaintext: &PolyRq,
-    ) -> HeCiphertext {
+    pub fn mul_plaintext(&self, ciphertext: &HeCiphertext, plaintext: &PolyRq) -> HeCiphertext {
         self.assert_ciphertext(ciphertext);
         let plain_rns = self.plaintext_at_level(plaintext, ciphertext.level);
         HeCiphertext::new(
@@ -266,11 +351,7 @@ impl RlweHe {
         )
     }
 
-    pub fn one_minus(
-        &self,
-        ciphertext: &HeCiphertext,
-        one: &PolyRq,
-    ) -> HeCiphertext {
+    pub fn one_minus(&self, ciphertext: &HeCiphertext, one: &PolyRq) -> HeCiphertext {
         assert_eq!(one.modulus(), HE_PLAINTEXT_MODULUS);
         let negated = self.negate(ciphertext);
         self.add_plaintext(&negated, one)
@@ -287,8 +368,14 @@ impl RlweHe {
     ) -> HeCiphertext {
         self.assert_ciphertext(lhs);
         self.assert_ciphertext(rhs);
-        assert_eq!(lhs.level, rhs.level, "ciphertexts must be at the same level");
-        assert!(lhs.level < self.max_level(), "no modulus-switch level remains");
+        assert_eq!(
+            lhs.level, rhs.level,
+            "ciphertexts must be at the same level"
+        );
+        assert!(
+            lhs.level < self.max_level(),
+            "no modulus-switch level remains"
+        );
 
         let relin_key = relin_keys
             .keys
@@ -303,7 +390,10 @@ impl RlweHe {
     /// Drop exactly one RNS prime and update the actual ciphertext basis.
     pub fn modulus_switch(&self, ciphertext: &HeCiphertext) -> HeCiphertext {
         self.assert_ciphertext(ciphertext);
-        assert!(ciphertext.level < self.max_level(), "cannot switch beyond final level");
+        assert!(
+            ciphertext.level < self.max_level(),
+            "cannot switch beyond final level"
+        );
 
         let active_len = self.active_len(ciphertext.level);
         let target_chain = self.chain_for_len(active_len - 1);
@@ -320,8 +410,14 @@ impl RlweHe {
         target_level: usize,
     ) -> HeCiphertext {
         self.assert_ciphertext(ciphertext);
-        assert!(target_level >= ciphertext.level, "cannot switch to a shallower level");
-        assert!(target_level <= self.max_level(), "target level is outside the modulus chain");
+        assert!(
+            target_level >= ciphertext.level,
+            "cannot switch to a shallower level"
+        );
+        assert!(
+            target_level <= self.max_level(),
+            "target level is outside the modulus chain"
+        );
 
         let mut current = HeCiphertext::new(
             RnsCiphertext {
@@ -338,11 +434,7 @@ impl RlweHe {
 
     /// Compatibility name retained for BPR12 call sites; this is true RNS
     /// modulus switching, not a metadata-only level update.
-    pub fn lift_level(
-        &self,
-        ciphertext: &HeCiphertext,
-        target_level: usize,
-    ) -> HeCiphertext {
+    pub fn lift_level(&self, ciphertext: &HeCiphertext, target_level: usize) -> HeCiphertext {
         self.modulus_switch_to_level(ciphertext, target_level)
     }
 
@@ -483,12 +575,23 @@ impl RlweHe {
     }
 
     fn assert_plaintext(&self, plaintext: &PolyRq) {
-        assert_eq!(plaintext.modulus(), HE_PLAINTEXT_MODULUS, "plaintext must be in Z_17");
-        assert_eq!(plaintext.degree_bound(), self.degree, "plaintext degree mismatch");
+        assert_eq!(
+            plaintext.modulus(),
+            HE_PLAINTEXT_MODULUS,
+            "plaintext must be in Z_17"
+        );
+        assert_eq!(
+            plaintext.degree_bound(),
+            self.degree,
+            "plaintext degree mismatch"
+        );
     }
 
     fn active_len(&self, level: usize) -> usize {
-        assert!(level <= self.max_level(), "ciphertext level outside RNS chain");
+        assert!(
+            level <= self.max_level(),
+            "ciphertext level outside RNS chain"
+        );
         self.moduli.len() - level
     }
 

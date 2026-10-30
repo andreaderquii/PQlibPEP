@@ -1,3 +1,7 @@
+//! Parameterized legacy BPR12 path. Its default benchmark profile is declared
+//! centrally in [`crate::parameters::bpr12_prototype`]; callers may still pass
+//! explicit dimensions and modulus chains for tests.
+
 use rand::RngCore;
 
 use crate::algebra::ring::PolyRq;
@@ -10,12 +14,7 @@ pub struct RlwrPrfBase {
 }
 
 impl RlwrPrfBase {
-    pub fn sample<R: RngCore>(
-        rng: &mut R,
-        n: usize,
-        q: u64,
-        input_len: usize,
-    ) -> Self {
+    pub fn sample<R: RngCore>(rng: &mut R, n: usize, q: u64, input_len: usize) -> Self {
         let s0 = (0..input_len)
             .map(|_| sample_uniform_poly(rng, n, q))
             .collect();
@@ -27,15 +26,8 @@ impl RlwrPrfBase {
         Self { s0, s1 }
     }
 
-    pub fn evaluate_at(
-        &self,
-        position: usize,
-        bit: u8,
-    ) -> &PolyRq {
-        assert!(
-            position < self.s0.len(),
-            "PRF leaf position out of range"
-        );
+    pub fn evaluate_at(&self, position: usize, bit: u8) -> &PolyRq {
+        assert!(position < self.s0.len(), "PRF leaf position out of range");
 
         match bit {
             0 => &self.s0[position],
@@ -51,10 +43,7 @@ pub struct RlwrPrf {
 }
 
 impl RlwrPrf {
-    pub fn new(
-        base: RlwrPrfBase,
-        moduli: Vec<u64>,
-    ) -> Self {
+    pub fn new(base: RlwrPrfBase, moduli: Vec<u64>) -> Self {
         assert!(
             moduli.len() >= 2,
             "the modulus chain must contain at least q_0 and q_1"
@@ -65,8 +54,7 @@ impl RlwrPrf {
             "BPR12 modulus chain must satisfy q_0 < q_1 < ... < q_d"
         );
 
-        let highest_modulus =
-            *moduli.last().unwrap();
+        let highest_modulus = *moduli.last().unwrap();
 
         assert_eq!(
             base.s0.len(),
@@ -79,8 +67,7 @@ impl RlwrPrf {
             "number of PRF leaves must be a power of two"
         );
 
-        let expected_leaves =
-            1usize << (moduli.len() - 1);
+        let expected_leaves = 1usize << (moduli.len() - 1);
 
         assert_eq!(
             base.s0.len(),
@@ -89,41 +76,27 @@ impl RlwrPrf {
         );
 
         assert!(
-            base.s0
-                .iter()
-                .all(|p| p.modulus() == highest_modulus),
+            base.s0.iter().all(|p| p.modulus() == highest_modulus),
             "all base polynomials in s0 must use q_d"
         );
 
         assert!(
-            base.s1
-                .iter()
-                .all(|p| p.modulus() == highest_modulus),
+            base.s1.iter().all(|p| p.modulus() == highest_modulus),
             "all base polynomials in s1 must use q_d"
         );
 
-        Self {
-            base,
-            moduli,
-        }
+        Self { base, moduli }
     }
 
-    pub fn evaluate(
-        &self,
-        input: &[u8],
-    ) -> PolyRq {
-        assert!(
-            !input.is_empty(),
-            "PRF input must not be empty"
-        );
+    pub fn evaluate(&self, input: &[u8]) -> PolyRq {
+        assert!(!input.is_empty(), "PRF input must not be empty");
 
         assert!(
             input.len().is_power_of_two(),
             "PRF input length must be a power of two"
         );
 
-        let depth =
-            input.len().ilog2() as usize;
+        let depth = input.len().ilog2() as usize;
 
         assert!(
             depth < self.moduli.len(),
@@ -136,55 +109,23 @@ impl RlwrPrf {
             "PRF base key size must match the input length"
         );
 
-        self.evaluate_recursive(
-            input,
-            depth,
-            0,
-        )
+        self.evaluate_recursive(input, depth, 0)
     }
 
-    fn evaluate_recursive(
-        &self,
-        input: &[u8],
-        level: usize,
-        start_position: usize,
-    ) -> PolyRq {
+    fn evaluate_recursive(&self, input: &[u8], level: usize, start_position: usize) -> PolyRq {
         if level == 0 {
-            return self
-                .base
-                .evaluate_at(
-                    start_position,
-                    input[0],
-                )
-                .clone();
+            return self.base.evaluate_at(start_position, input[0]).clone();
         }
 
-        let midpoint =
-            input.len() / 2;
+        let midpoint = input.len() / 2;
 
-        let left =
-            self.evaluate_recursive(
-                &input[..midpoint],
-                level - 1,
-                start_position,
-            );
+        let left = self.evaluate_recursive(&input[..midpoint], level - 1, start_position);
 
         let right =
-            self.evaluate_recursive(
-                &input[midpoint..],
-                level - 1,
-                start_position + midpoint,
-            );
+            self.evaluate_recursive(&input[midpoint..], level - 1, start_position + midpoint);
 
-        let target_modulus =
-            self.moduli[
-                self.moduli.len() - 1 - level
-            ];
+        let target_modulus = self.moduli[self.moduli.len() - 1 - level];
 
-        synthesize(
-            &left,
-            &right,
-            target_modulus,
-        )
+        synthesize(&left, &right, target_modulus)
     }
 }

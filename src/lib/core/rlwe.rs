@@ -1,7 +1,8 @@
 use rand::RngCore;
 
-use crate::algebra::ring::{PolyRq, Q};
+use crate::algebra::ring::PolyRq;
 use crate::algebra::sampling::{sample_small_poly, sample_uniform_poly};
+use crate::parameters::rlwe_prototype::CIPHERTEXT_MODULUS as Q;
 
 pub struct SecretKey {
     pub s: PolyRq,
@@ -36,42 +37,18 @@ impl KeyGenResult {
         }
     }
 
-    pub fn keygen_with_modulus<R: RngCore>(
-        rng: &mut R,
-        n: usize,
-        q: u64,
-    ) -> Self {
-        assert!(
-            q >= 2,
-            "RLWE modulus must be at least 2"
-        );
+    pub fn keygen_with_modulus<R: RngCore>(rng: &mut R, n: usize, q: u64) -> Self {
+        assert!(q >= 2, "RLWE modulus must be at least 2");
 
-        let a =
-            sample_uniform_poly(
-                rng,
-                n,
-                q,
-            );
+        let a = sample_uniform_poly(rng, n, q);
 
-        let s =
-            sample_small_poly(
-                rng,
-                n,
-                q,
-            );
+        let s = sample_small_poly(rng, n, q);
 
-        let e =
-            sample_small_poly(
-                rng,
-                n,
-                q,
-            );
+        let e = sample_small_poly(rng, n, q);
 
-        let as_prod =
-            a.mul_negacyclic(&s);
+        let as_prod = a.mul_negacyclic(&s);
 
-        let b =
-            as_prod.add(&e);
+        let b = as_prod.add(&e);
 
         Self {
             sk: SecretKey { s },

@@ -14,16 +14,9 @@ use std::hint::black_box;
 use pq_libpep::core::rlwe_pke::{decrypt_poly, encrypt_poly};
 use pq_libpep::core::rlwe_pre::{generate_rekey, reencrypt};
 
-use pq_libpep::core::reshuffle::{
-    lift_prf_output_to_q,
-    derive_reshuffle_factor,
-    reshuffle,
-};
+use pq_libpep::core::reshuffle::{derive_reshuffle_factor, lift_prf_output_to_q, reshuffle};
 
-use pq_libpep::core::id_encoding::{
-    bytes_to_bits,
-    string_to_id,
-};
+use pq_libpep::core::id_encoding::{bytes_to_bits, string_to_id};
 use pq_libpep::core::pseudonym::pseudonymize_32;
 
 #[test]
@@ -34,11 +27,7 @@ fn test_decompose_and_reconstruct() {
     let base_bits = 4;
     let base = 1u64 << base_bits;
 
-    let input = PolyRq::from_coeffs(
-        &[0, 1, 15, 16, 17, 255, 256, 998_244_352],
-        n,
-        Q,
-    );
+    let input = PolyRq::from_coeffs(&[0, 1, 15, 16, 17, 255, 256, 998_244_352], n, Q);
 
     println!("Input polynomial:");
     println!("{:?}", input.to_coeffs_vec()[..n].to_vec());
@@ -52,10 +41,7 @@ fn test_decompose_and_reconstruct() {
     println!("{}", digits.len());
 
     for (i, digit_poly) in digits.iter().enumerate() {
-        println!(
-            "\nDigit d{}:",
-            i
-        );
+        println!("\nDigit d{}:", i);
         println!("{:?}", digit_poly.to_coeffs_vec()[..n].to_vec());
     }
 
@@ -70,18 +56,13 @@ fn test_decompose_and_reconstruct() {
 
         println!(
             "\nReconstructing digit {} with B^{} = {}",
-            digit_index,
-            digit_index,
-            power
+            digit_index, digit_index, power
         );
 
         for j in 0..n {
-            let contribution =
-                (digit_coeffs[j] as u128 * power) % Q as u128;
+            let contribution = (digit_coeffs[j] as u128 * power) % Q as u128;
 
-            reconstructed[j] =
-                ((reconstructed[j] as u128 + contribution)
-                    % Q as u128) as u64;
+            reconstructed[j] = ((reconstructed[j] as u128 + contribution) % Q as u128) as u64;
         }
     }
 
@@ -91,18 +72,10 @@ fn test_decompose_and_reconstruct() {
     println!("\nExpected polynomial:");
     println!("{:?}", input.to_coeffs_vec()[..n].to_vec());
 
-    assert_eq!(
-        reconstructed,
-        input.to_coeffs_vec()[..n].to_vec()
-    );
+    assert_eq!(reconstructed, input.to_coeffs_vec()[..n].to_vec());
 
     println!("\nDecomposition + reconstruction: OK");
 }
-
-
-
-
-
 
 //2nd test
 
@@ -125,17 +98,9 @@ fn test_generate_rekey() {
     println!("\nGenerated Alice key pair.");
     println!("Generated Bob key pair.");
 
-    let rekey = generate_rekey(
-        &mut rng,
-        &alice.sk,
-        &bob.pk,
-        base_bits,
-    );
+    let rekey = generate_rekey(&mut rng, &alice.sk, &bob.pk, base_bits);
 
-    println!(
-        "\nNumber of KeySwitchEntry = {}",
-        rekey.entries.len()
-    );
+    println!("\nNumber of KeySwitchEntry = {}", rekey.entries.len());
 
     assert!(!rekey.entries.is_empty());
 
@@ -151,9 +116,6 @@ fn test_generate_rekey() {
     println!("\nReKey generation: OK");
 }
 
-
-
-
 #[test]
 fn test_reencrypt_a_to_b() {
     let mut rng = thread_rng();
@@ -162,10 +124,7 @@ fn test_reencrypt_a_to_b() {
     let base_bits = 4;
     let base = 1u64 << base_bits;
 
-    let message = vec![
-        0, 1, 1, 0,
-        1, 0, 1, 1,
-    ];
+    let message = vec![0, 1, 1, 0, 1, 0, 1, 1];
 
     println!("=================================");
     println!("       PRE A -> B TEST");
@@ -184,12 +143,7 @@ fn test_reencrypt_a_to_b() {
     println!("{:?}", message);
 
     println!("\n[4] Encrypting under Alice...");
-    let ciphertext_a = encrypt(
-        &mut rng,
-        &alice.pk,
-        &message,
-        n,
-    );
+    let ciphertext_a = encrypt(&mut rng, &alice.pk, &message, n);
 
     println!(
         "ciphertext_a.u first coefficients = {:?}",
@@ -202,43 +156,22 @@ fn test_reencrypt_a_to_b() {
     );
 
     println!("\n[5] Checking Alice can decrypt...");
-    let recovered_a = decrypt(
-        &alice.sk,
-        &ciphertext_a,
-        n,
-        message.len(),
-    );
+    let recovered_a = decrypt(&alice.sk, &ciphertext_a, n, message.len());
 
-    println!(
-        "Alice recovered message = {:?}",
-        recovered_a
-    );
+    println!("Alice recovered message = {:?}", recovered_a);
 
     assert_eq!(
-        recovered_a,
-        message,
+        recovered_a, message,
         "Alice must decrypt her own ciphertext"
     );
 
     println!("\n[6] Generating re-encryption key Alice -> Bob...");
-    let rekey = generate_rekey(
-        &mut rng,
-        &alice.sk,
-        &bob.pk,
-        base_bits,
-    );
+    let rekey = generate_rekey(&mut rng, &alice.sk, &bob.pk, base_bits);
 
-    println!(
-        "ReKey entries = {}",
-        rekey.entries.len()
-    );
+    println!("ReKey entries = {}", rekey.entries.len());
 
     println!("\n[7] Proxy re-encrypts Alice ciphertext...");
-    let ciphertext_b = reencrypt(
-        &ciphertext_a,
-        &rekey,
-        base_bits,
-    );
+    let ciphertext_b = reencrypt(&ciphertext_a, &rekey, base_bits);
 
     println!(
         "ciphertext_b.u first coefficients = {:?}",
@@ -251,23 +184,14 @@ fn test_reencrypt_a_to_b() {
     );
 
     println!("\n[8] Bob decrypts re-encrypted ciphertext...");
-    let recovered_b = decrypt(
-        &bob.sk,
-        &ciphertext_b,
-        n,
-        message.len(),
-    );
+    let recovered_b = decrypt(&bob.sk, &ciphertext_b, n, message.len());
 
-    println!(
-        "Bob recovered message = {:?}",
-        recovered_b
-    );
+    println!("Bob recovered message = {:?}", recovered_b);
 
     println!("\n[9] Checking correctness...");
 
     assert_eq!(
-        recovered_b,
-        message,
+        recovered_b, message,
         "Bob must recover the original message after re-encryption"
     );
 
@@ -284,10 +208,7 @@ fn test_reencrypt_a_to_b_to_c() {
     let base_bits = 4;
     let base = 1u64 << base_bits;
 
-    let message = vec![
-        1, 0, 1, 1,
-        0, 1, 0, 0,
-    ];
+    let message = vec![1, 0, 1, 1, 0, 1, 0, 0];
 
     println!("=================================");
     println!("      PRE A -> B -> C TEST");
@@ -322,12 +243,7 @@ fn test_reencrypt_a_to_b_to_c() {
 
     println!("\n[5] Encrypting under Alice...");
 
-    let ciphertext_a = encrypt(
-        &mut rng,
-        &alice.pk,
-        &message,
-        n,
-    );
+    let ciphertext_a = encrypt(&mut rng, &alice.pk, &message, n);
 
     println!(
         "ciphertext_a.u first coefficients = {:?}",
@@ -345,21 +261,12 @@ fn test_reencrypt_a_to_b_to_c() {
 
     println!("\n[6] Checking Alice can decrypt...");
 
-    let recovered_a = decrypt(
-        &alice.sk,
-        &ciphertext_a,
-        n,
-        message.len(),
-    );
+    let recovered_a = decrypt(&alice.sk, &ciphertext_a, n, message.len());
 
-    println!(
-        "Alice recovered message = {:?}",
-        recovered_a
-    );
+    println!("Alice recovered message = {:?}", recovered_a);
 
     assert_eq!(
-        recovered_a,
-        message,
+        recovered_a, message,
         "Alice must decrypt her own ciphertext"
     );
 
@@ -369,17 +276,9 @@ fn test_reencrypt_a_to_b_to_c() {
 
     println!("\n[7] Generating re-encryption key Alice -> Bob...");
 
-    let rekey_a_to_b = generate_rekey(
-        &mut rng,
-        &alice.sk,
-        &bob.pk,
-        base_bits,
-    );
+    let rekey_a_to_b = generate_rekey(&mut rng, &alice.sk, &bob.pk, base_bits);
 
-    println!(
-        "RK_A->B entries = {}",
-        rekey_a_to_b.entries.len()
-    );
+    println!("RK_A->B entries = {}", rekey_a_to_b.entries.len());
 
     // ------------------------------------------------------------
     // 6. Re-encrypt A -> B
@@ -387,11 +286,7 @@ fn test_reencrypt_a_to_b_to_c() {
 
     println!("\n[8] Proxy re-encrypts Alice -> Bob...");
 
-    let ciphertext_b = reencrypt(
-        &ciphertext_a,
-        &rekey_a_to_b,
-        base_bits,
-    );
+    let ciphertext_b = reencrypt(&ciphertext_a, &rekey_a_to_b, base_bits);
 
     println!(
         "ciphertext_b.u first coefficients = {:?}",
@@ -409,21 +304,12 @@ fn test_reencrypt_a_to_b_to_c() {
 
     println!("\n[9] Checking Bob can decrypt after A -> B...");
 
-    let recovered_b = decrypt(
-        &bob.sk,
-        &ciphertext_b,
-        n,
-        message.len(),
-    );
+    let recovered_b = decrypt(&bob.sk, &ciphertext_b, n, message.len());
 
-    println!(
-        "Bob recovered message = {:?}",
-        recovered_b
-    );
+    println!("Bob recovered message = {:?}", recovered_b);
 
     assert_eq!(
-        recovered_b,
-        message,
+        recovered_b, message,
         "Bob must recover the original message after A -> B"
     );
 
@@ -433,17 +319,9 @@ fn test_reencrypt_a_to_b_to_c() {
 
     println!("\n[10] Generating re-encryption key Bob -> Carol...");
 
-    let rekey_b_to_c = generate_rekey(
-        &mut rng,
-        &bob.sk,
-        &carol.pk,
-        base_bits,
-    );
+    let rekey_b_to_c = generate_rekey(&mut rng, &bob.sk, &carol.pk, base_bits);
 
-    println!(
-        "RK_B->C entries = {}",
-        rekey_b_to_c.entries.len()
-    );
+    println!("RK_B->C entries = {}", rekey_b_to_c.entries.len());
 
     // ------------------------------------------------------------
     // 9. Re-encrypt B -> C
@@ -451,11 +329,7 @@ fn test_reencrypt_a_to_b_to_c() {
 
     println!("\n[11] Proxy re-encrypts Bob -> Carol...");
 
-    let ciphertext_c = reencrypt(
-        &ciphertext_b,
-        &rekey_b_to_c,
-        base_bits,
-    );
+    let ciphertext_c = reencrypt(&ciphertext_b, &rekey_b_to_c, base_bits);
 
     println!(
         "ciphertext_c.u first coefficients = {:?}",
@@ -473,25 +347,16 @@ fn test_reencrypt_a_to_b_to_c() {
 
     println!("\n[12] Carol decrypts after A -> B -> C...");
 
-    let recovered_c = decrypt(
-        &carol.sk,
-        &ciphertext_c,
-        n,
-        message.len(),
-    );
+    let recovered_c = decrypt(&carol.sk, &ciphertext_c, n, message.len());
 
-    println!(
-        "Carol recovered message = {:?}",
-        recovered_c
-    );
+    println!("Carol recovered message = {:?}", recovered_c);
 
     // ------------------------------------------------------------
     // 11. Final correctness check
     // ------------------------------------------------------------
 
     assert_eq!(
-        recovered_c,
-        message,
+        recovered_c, message,
         "Carol must recover the original message after A -> B -> C"
     );
 
@@ -544,7 +409,6 @@ fn measure_noise(
     (max_abs_noise, average_abs_noise)
 }
 
-
 #[test]
 fn test_noise_growth_a_to_b_to_c() {
     let mut rng = thread_rng();
@@ -552,10 +416,7 @@ fn test_noise_growth_a_to_b_to_c() {
     let n = 256;
     let base_bits = 4;
 
-    let message = vec![
-        1, 0, 1, 1,
-        0, 1, 0, 0,
-    ];
+    let message = vec![1, 0, 1, 1, 0, 1, 0, 0];
 
     println!("=================================");
     println!("      PRE NOISE GROWTH TEST");
@@ -582,31 +443,13 @@ fn test_noise_growth_a_to_b_to_c() {
 
     println!("\n[2] Encrypting under Alice...");
 
-    let ciphertext_a = encrypt(
-        &mut rng,
-        &alice.pk,
-        &message,
-        n,
-    );
+    let ciphertext_a = encrypt(&mut rng, &alice.pk, &message, n);
 
-    let (max_a, avg_a) = measure_noise(
-        &alice.sk,
-        &ciphertext_a,
-        &message,
-        n,
-    );
+    let (max_a, avg_a) = measure_noise(&alice.sk, &ciphertext_a, &message, n);
 
-    println!(
-        "Alice ciphertext:"
-    );
-    println!(
-        "  max |noise| = {}",
-        max_a
-    );
-    println!(
-        "  avg |noise| = {:.2}",
-        avg_a
-    );
+    println!("Alice ciphertext:");
+    println!("  max |noise| = {}", max_a);
+    println!("  avg |noise| = {:.2}", avg_a);
 
     assert!(
         max_a < (Q / 4) as i64,
@@ -619,57 +462,26 @@ fn test_noise_growth_a_to_b_to_c() {
 
     println!("\n[3] Generating RK_A->B...");
 
-    let rekey_a_to_b = generate_rekey(
-        &mut rng,
-        &alice.sk,
-        &bob.pk,
-        base_bits,
-    );
+    let rekey_a_to_b = generate_rekey(&mut rng, &alice.sk, &bob.pk, base_bits);
 
     println!("[4] Re-encrypting A -> B...");
 
-    let ciphertext_b = reencrypt(
-        &ciphertext_a,
-        &rekey_a_to_b,
-        base_bits,
-    );
+    let ciphertext_b = reencrypt(&ciphertext_a, &rekey_a_to_b, base_bits);
 
-    let (max_b, avg_b) = measure_noise(
-        &bob.sk,
-        &ciphertext_b,
-        &message,
-        n,
-    );
+    let (max_b, avg_b) = measure_noise(&bob.sk, &ciphertext_b, &message, n);
 
-    println!(
-        "Bob ciphertext after A -> B:"
-    );
-    println!(
-        "  max |noise| = {}",
-        max_b
-    );
-    println!(
-        "  avg |noise| = {:.2}",
-        avg_b
-    );
+    println!("Bob ciphertext after A -> B:");
+    println!("  max |noise| = {}", max_b);
+    println!("  avg |noise| = {:.2}", avg_b);
 
     assert!(
         max_b < (Q / 4) as i64,
         "A -> B noise is outside the decoding region"
     );
 
-    let recovered_b = decrypt(
-        &bob.sk,
-        &ciphertext_b,
-        n,
-        message.len(),
-    );
+    let recovered_b = decrypt(&bob.sk, &ciphertext_b, n, message.len());
 
-    assert_eq!(
-        recovered_b,
-        message,
-        "Bob failed to decrypt after A -> B"
-    );
+    assert_eq!(recovered_b, message, "Bob failed to decrypt after A -> B");
 
     // ------------------------------------------------------------
     // B -> C
@@ -677,55 +489,27 @@ fn test_noise_growth_a_to_b_to_c() {
 
     println!("\n[5] Generating RK_B->C...");
 
-    let rekey_b_to_c = generate_rekey(
-        &mut rng,
-        &bob.sk,
-        &carol.pk,
-        base_bits,
-    );
+    let rekey_b_to_c = generate_rekey(&mut rng, &bob.sk, &carol.pk, base_bits);
 
     println!("[6] Re-encrypting B -> C...");
 
-    let ciphertext_c = reencrypt(
-        &ciphertext_b,
-        &rekey_b_to_c,
-        base_bits,
-    );
+    let ciphertext_c = reencrypt(&ciphertext_b, &rekey_b_to_c, base_bits);
 
-    let (max_c, avg_c) = measure_noise(
-        &carol.sk,
-        &ciphertext_c,
-        &message,
-        n,
-    );
+    let (max_c, avg_c) = measure_noise(&carol.sk, &ciphertext_c, &message, n);
 
-    println!(
-        "Carol ciphertext after A -> B -> C:"
-    );
-    println!(
-        "  max |noise| = {}",
-        max_c
-    );
-    println!(
-        "  avg |noise| = {:.2}",
-        avg_c
-    );
+    println!("Carol ciphertext after A -> B -> C:");
+    println!("  max |noise| = {}", max_c);
+    println!("  avg |noise| = {:.2}", avg_c);
 
     assert!(
         max_c < (Q / 4) as i64,
         "A -> B -> C noise is outside the decoding region"
     );
 
-    let recovered_c = decrypt(
-        &carol.sk,
-        &ciphertext_c,
-        n,
-        message.len(),
-    );
+    let recovered_c = decrypt(&carol.sk, &ciphertext_c, n, message.len());
 
     assert_eq!(
-        recovered_c,
-        message,
+        recovered_c, message,
         "Carol failed to decrypt after A -> B -> C"
     );
 
@@ -737,29 +521,16 @@ fn test_noise_growth_a_to_b_to_c() {
     println!("          NOISE SUMMARY");
     println!("=================================");
 
-    println!(
-        "A       : max = {:>12}, avg = {:.2}",
-        max_a, avg_a
-    );
+    println!("A       : max = {:>12}, avg = {:.2}", max_a, avg_a);
 
-    println!(
-        "A -> B  : max = {:>12}, avg = {:.2}",
-        max_b, avg_b
-    );
+    println!("A -> B  : max = {:>12}, avg = {:.2}", max_b, avg_b);
 
-    println!(
-        "A -> B -> C : max = {:>8}, avg = {:.2}",
-        max_c, avg_c
-    );
+    println!("A -> B -> C : max = {:>8}, avg = {:.2}", max_c, avg_c);
 
-    println!(
-        "\nDecoding boundary q/4 = {}",
-        Q / 4
-    );
+    println!("\nDecoding boundary q/4 = {}", Q / 4);
 
     println!("Noise growth test: OK");
 }
-
 
 #[test]
 fn test_multi_hop_noise_growth() {
@@ -769,10 +540,7 @@ fn test_multi_hop_noise_growth() {
     let base_bits = 4;
     let max_hops = 10;
 
-    let message = vec![
-        1, 0, 1, 1,
-        0, 1, 0, 0,
-    ];
+    let message = vec![1, 0, 1, 1, 0, 1, 0, 0];
 
     println!("===============================================");
     println!("         PRE MULTI-HOP NOISE TEST");
@@ -793,12 +561,7 @@ fn test_multi_hop_noise_growth() {
 
     println!("[0] Encrypting message under Alice...");
 
-    let mut current_ciphertext = encrypt(
-        &mut rng,
-        &alice.pk,
-        &message,
-        n,
-    );
+    let mut current_ciphertext = encrypt(&mut rng, &alice.pk, &message, n);
 
     let mut current_sk = alice.sk;
 
@@ -806,17 +569,11 @@ fn test_multi_hop_noise_growth() {
     // Measure initial encryption noise
     // ------------------------------------------------------------
 
-    let (max_noise, avg_noise) = measure_noise(
-        &current_sk,
-        &current_ciphertext,
-        &message,
-        n,
-    );
+    let (max_noise, avg_noise) = measure_noise(&current_sk, &current_ciphertext, &message, n);
 
     println!(
         "\nHop 0: max_noise = {:>12}, avg_noise = {:>12.2}, decrypt = OK",
-        max_noise,
-        avg_noise
+        max_noise, avg_noise
     );
 
     // ------------------------------------------------------------
@@ -828,82 +585,36 @@ fn test_multi_hop_noise_growth() {
         println!("Starting hop {}", hop);
         println!("-----------------------------------------------");
 
-        println!(
-            "[{}] Generating next key pair...",
-            hop
-        );
+        println!("[{}] Generating next key pair...", hop);
 
-        let next = KeyGenResult::keygen(
-            &mut rng,
-            n,
-        );
+        let next = KeyGenResult::keygen(&mut rng, n);
 
-        println!(
-            "[{}] Generating re-encryption key...",
-            hop
-        );
+        println!("[{}] Generating re-encryption key...", hop);
 
-        let rekey = generate_rekey(
-            &mut rng,
-            &current_sk,
-            &next.pk,
-            base_bits,
-        );
+        let rekey = generate_rekey(&mut rng, &current_sk, &next.pk, base_bits);
 
-        println!(
-            "[{}] Re-encrypting ciphertext...",
-            hop
-        );
+        println!("[{}] Re-encrypting ciphertext...", hop);
 
-        let next_ciphertext = reencrypt(
-            &current_ciphertext,
-            &rekey,
-            base_bits,
-        );
+        let next_ciphertext = reencrypt(&current_ciphertext, &rekey, base_bits);
 
-        let (max_noise, avg_noise) = measure_noise(
-            &next.sk,
-            &next_ciphertext,
-            &message,
-            n,
-        );
+        let (max_noise, avg_noise) = measure_noise(&next.sk, &next_ciphertext, &message, n);
 
-        let recovered = decrypt(
-            &next.sk,
-            &next_ciphertext,
-            n,
-            message.len(),
-        );
+        let recovered = decrypt(&next.sk, &next_ciphertext, n, message.len());
 
         let decrypt_ok = recovered == message;
 
         println!("\nHop {} result:", hop);
 
-        println!(
-            "  max |noise| = {}",
-            max_noise
-        );
+        println!("  max |noise| = {}", max_noise);
 
-        println!(
-            "  avg |noise| = {:.2}",
-            avg_noise
-        );
+        println!("  avg |noise| = {:.2}", avg_noise);
 
-        println!(
-            "  decoding boundary = {}",
-            Q / 4
-        );
+        println!("  decoding boundary = {}", Q / 4);
 
-        println!(
-            "  decrypt = {}",
-            if decrypt_ok { "OK" } else { "FAILED" }
-        );
+        println!("  decrypt = {}", if decrypt_ok { "OK" } else { "FAILED" });
 
         if !decrypt_ok {
-            println!(
-                "\nDecryption failed at hop {}.",
-                hop
-            );
+            println!("\nDecryption failed at hop {}.", hop);
 
             break;
         }
@@ -917,7 +628,6 @@ fn test_multi_hop_noise_growth() {
     println!("===============================================");
 }
 
-
 #[test]
 fn test_mega_multi_hop_noise_experiment() {
     let runs = 100;
@@ -927,10 +637,7 @@ fn test_mega_multi_hop_noise_experiment() {
     let base_bits = 4;
     let base = 1u64 << base_bits;
 
-    let message = vec![
-        1, 0, 1, 1,
-        0, 1, 0, 0,
-    ];
+    let message = vec![1, 0, 1, 1, 0, 1, 0, 0];
 
     let decoding_boundary = (Q / 4) as i64;
 
@@ -960,11 +667,7 @@ fn test_mega_multi_hop_noise_experiment() {
     for run in 0..runs {
         let mut rng = thread_rng();
 
-        println!(
-            "\n[RUN {:>3}/{:>3}] Starting experiment...",
-            run + 1,
-            runs
-        );
+        println!("\n[RUN {:>3}/{:>3}] Starting experiment...", run + 1, runs);
 
         // --------------------------------------------------------
         // Initial party: Alice
@@ -974,38 +677,22 @@ fn test_mega_multi_hop_noise_experiment() {
 
         let mut current_sk = alice.sk;
 
-        let mut current_ciphertext = encrypt(
-            &mut rng,
-            &alice.pk,
-            &message,
-            n,
-        );
+        let mut current_ciphertext = encrypt(&mut rng, &alice.pk, &message, n);
 
         // --------------------------------------------------------
         // Hop 0: original encryption
         // --------------------------------------------------------
 
-        let (max_noise, avg_noise) = measure_noise(
-            &current_sk,
-            &current_ciphertext,
-            &message,
-            n,
-        );
+        let (max_noise, avg_noise) = measure_noise(&current_sk, &current_ciphertext, &message, n);
 
         sum_max_noise[0] += max_noise as f64;
         sum_avg_noise[0] += avg_noise;
 
-        worst_max_noise[0] =
-            worst_max_noise[0].max(max_noise);
+        worst_max_noise[0] = worst_max_noise[0].max(max_noise);
 
         samples[0] += 1;
 
-        let recovered = decrypt(
-            &current_sk,
-            &current_ciphertext,
-            n,
-            message.len(),
-        );
+        let recovered = decrypt(&current_sk, &current_ciphertext, n, message.len());
 
         if recovered != message {
             decryption_failures[0] += 1;
@@ -1015,10 +702,7 @@ fn test_mega_multi_hop_noise_experiment() {
                 first_failure_hop = Some(0);
             }
 
-            println!(
-                "[RUN {}] FAILURE at hop 0",
-                run + 1
-            );
+            println!("[RUN {}] FAILURE at hop 0", run + 1);
 
             continue;
         }
@@ -1028,40 +712,22 @@ fn test_mega_multi_hop_noise_experiment() {
         // --------------------------------------------------------
 
         for hop in 1..=max_hops {
-            let next = KeyGenResult::keygen(
-                &mut rng,
-                n,
-            );
+            let next = KeyGenResult::keygen(&mut rng, n);
 
-            let rekey = generate_rekey(
-                &mut rng,
-                &current_sk,
-                &next.pk,
-                base_bits,
-            );
+            let rekey = generate_rekey(&mut rng, &current_sk, &next.pk, base_bits);
 
-            let next_ciphertext = reencrypt(
-                &current_ciphertext,
-                &rekey,
-                base_bits,
-            );
+            let next_ciphertext = reencrypt(&current_ciphertext, &rekey, base_bits);
 
             // ----------------------------------------------------
             // Measure noise
             // ----------------------------------------------------
 
-            let (max_noise, avg_noise) = measure_noise(
-                &next.sk,
-                &next_ciphertext,
-                &message,
-                n,
-            );
+            let (max_noise, avg_noise) = measure_noise(&next.sk, &next_ciphertext, &message, n);
 
             sum_max_noise[hop] += max_noise as f64;
             sum_avg_noise[hop] += avg_noise;
 
-            worst_max_noise[hop] =
-                worst_max_noise[hop].max(max_noise);
+            worst_max_noise[hop] = worst_max_noise[hop].max(max_noise);
 
             samples[hop] += 1;
 
@@ -1069,12 +735,7 @@ fn test_mega_multi_hop_noise_experiment() {
             // Check decryption
             // ----------------------------------------------------
 
-            let recovered = decrypt(
-                &next.sk,
-                &next_ciphertext,
-                n,
-                message.len(),
-            );
+            let recovered = decrypt(&next.sk, &next_ciphertext, n, message.len());
 
             if recovered != message {
                 decryption_failures[hop] += 1;
@@ -1084,11 +745,7 @@ fn test_mega_multi_hop_noise_experiment() {
                     first_failure_hop = Some(hop);
                 }
 
-                println!(
-                    "[RUN {}] FAILURE at hop {}",
-                    run + 1,
-                    hop
-                );
+                println!("[RUN {}] FAILURE at hop {}", run + 1, hop);
 
                 break;
             }
@@ -1100,11 +757,7 @@ fn test_mega_multi_hop_noise_experiment() {
 
         // Progress output every 10 runs.
         if (run + 1) % 10 == 0 {
-            println!(
-                "[PROGRESS] Completed {}/{} runs",
-                run + 1,
-                runs
-            );
+            println!("[PROGRESS] Completed {}/{} runs", run + 1, runs);
         }
     }
 
@@ -1118,45 +771,28 @@ fn test_mega_multi_hop_noise_experiment() {
 
     println!(
         "{:<5} {:>18} {:>18} {:>18} {:>12}",
-        "Hop",
-        "Mean max |noise|",
-        "Worst max |noise|",
-        "Mean avg |noise|",
-        "Failures"
+        "Hop", "Mean max |noise|", "Worst max |noise|", "Mean avg |noise|", "Failures"
     );
 
-    println!(
-        "{}",
-        "-".repeat(80)
-    );
+    println!("{}", "-".repeat(80));
 
     for hop in 0..=max_hops {
         if samples[hop] == 0 {
             println!(
                 "{:<5} {:>18} {:>18} {:>18} {:>12}",
-                hop,
-                "N/A",
-                "N/A",
-                "N/A",
-                decryption_failures[hop]
+                hop, "N/A", "N/A", "N/A", decryption_failures[hop]
             );
 
             continue;
         }
 
-        let mean_max =
-            sum_max_noise[hop] / samples[hop] as f64;
+        let mean_max = sum_max_noise[hop] / samples[hop] as f64;
 
-        let mean_avg =
-            sum_avg_noise[hop] / samples[hop] as f64;
+        let mean_avg = sum_avg_noise[hop] / samples[hop] as f64;
 
         println!(
             "{:<5} {:>18.2} {:>18} {:>18.2} {:>12}",
-            hop,
-            mean_max,
-            worst_max_noise[hop],
-            mean_avg,
-            decryption_failures[hop]
+            hop, mean_max, worst_max_noise[hop], mean_avg, decryption_failures[hop]
         );
     }
 
@@ -1170,27 +806,18 @@ fn test_mega_multi_hop_noise_experiment() {
 
     match first_failure_hop {
         Some(hop) => {
-            println!(
-                "First observed failure = hop {}",
-                hop
-            );
+            println!("First observed failure = hop {}", hop);
         }
 
         None => {
-            println!(
-                "No decryption failures observed."
-            );
+            println!("No decryption failures observed.");
         }
     }
 
-    println!(
-        "Decoding boundary    = {}",
-        decoding_boundary
-    );
+    println!("Decoding boundary    = {}", decoding_boundary);
 
     println!("======================================================");
 }
-
 
 //////////////////////////////////////////////// study on B parameter
 
@@ -1202,10 +829,7 @@ fn test_base_parameter_study() {
 
     let n = 256;
 
-    let message = vec![
-        1, 0, 1, 1,
-        0, 1, 0, 0,
-    ];
+    let message = vec![1, 0, 1, 1, 0, 1, 0, 0];
 
     println!("==============================================================");
     println!("              PRE BASE PARAMETER STUDY");
@@ -1228,11 +852,7 @@ fn test_base_parameter_study() {
         let start = Instant::now();
 
         println!("\n==============================================================");
-        println!(
-            "Testing base B = {} (base_bits = {})",
-            base,
-            base_bits
-        );
+        println!("Testing base B = {} (base_bits = {})", base, base_bits);
         println!("==============================================================");
 
         for run in 0..runs {
@@ -1242,32 +862,18 @@ fn test_base_parameter_study() {
 
             let mut current_sk = alice.sk;
 
-            let mut current_ciphertext = encrypt(
-                &mut rng,
-                &alice.pk,
-                &message,
-                n,
-            );
+            let mut current_ciphertext = encrypt(&mut rng, &alice.pk, &message, n);
 
             // Hop 0
-            let (max_noise, avg_noise) = measure_noise(
-                &current_sk,
-                &current_ciphertext,
-                &message,
-                n,
-            );
+            let (max_noise, avg_noise) =
+                measure_noise(&current_sk, &current_ciphertext, &message, n);
 
             sum_max_noise += max_noise as f64;
             sum_avg_noise += avg_noise;
             worst_max_noise = worst_max_noise.max(max_noise);
             total_hops += 1;
 
-            let recovered = decrypt(
-                &current_sk,
-                &current_ciphertext,
-                n,
-                message.len(),
-            );
+            let recovered = decrypt(&current_sk, &current_ciphertext, n, message.len());
 
             if recovered != message {
                 total_failures += 1;
@@ -1276,44 +882,21 @@ fn test_base_parameter_study() {
 
             // Re-encryption chain
             for _hop in 1..=max_hops {
-                let next = KeyGenResult::keygen(
-                    &mut rng,
-                    n,
-                );
+                let next = KeyGenResult::keygen(&mut rng, n);
 
-                let rekey = generate_rekey(
-                    &mut rng,
-                    &current_sk,
-                    &next.pk,
-                    base_bits,
-                );
+                let rekey = generate_rekey(&mut rng, &current_sk, &next.pk, base_bits);
 
-                let next_ciphertext = reencrypt(
-                    &current_ciphertext,
-                    &rekey,
-                    base_bits,
-                );
+                let next_ciphertext = reencrypt(&current_ciphertext, &rekey, base_bits);
 
-                let (max_noise, avg_noise) = measure_noise(
-                    &next.sk,
-                    &next_ciphertext,
-                    &message,
-                    n,
-                );
+                let (max_noise, avg_noise) = measure_noise(&next.sk, &next_ciphertext, &message, n);
 
                 sum_max_noise += max_noise as f64;
                 sum_avg_noise += avg_noise;
-                worst_max_noise =
-                    worst_max_noise.max(max_noise);
+                worst_max_noise = worst_max_noise.max(max_noise);
 
                 total_hops += 1;
 
-                let recovered = decrypt(
-                    &next.sk,
-                    &next_ciphertext,
-                    n,
-                    message.len(),
-                );
+                let recovered = decrypt(&next.sk, &next_ciphertext, n, message.len());
 
                 if recovered != message {
                     total_failures += 1;
@@ -1325,21 +908,15 @@ fn test_base_parameter_study() {
             }
 
             if (run + 1) % 5 == 0 {
-                println!(
-                    "Completed {}/{} runs",
-                    run + 1,
-                    runs
-                );
+                println!("Completed {}/{} runs", run + 1, runs);
             }
         }
 
         let elapsed = start.elapsed();
 
-        let mean_max_noise =
-            sum_max_noise / total_hops as f64;
+        let mean_max_noise = sum_max_noise / total_hops as f64;
 
-        let mean_avg_noise =
-            sum_avg_noise / total_hops as f64;
+        let mean_avg_noise = sum_avg_noise / total_hops as f64;
 
         let mut digit_count = 0usize;
         let mut value = Q;
@@ -1351,34 +928,17 @@ fn test_base_parameter_study() {
 
         println!("\nRESULTS FOR B = {}", base);
         println!("  KeySwitchEntry count = {}", digit_count);
-        println!(
-            "  Mean max |noise|     = {:.2}",
-            mean_max_noise
-        );
-        println!(
-            "  Worst max |noise|    = {}",
-            worst_max_noise
-        );
-        println!(
-            "  Mean avg |noise|     = {:.2}",
-            mean_avg_noise
-        );
-        println!(
-            "  Failures             = {}",
-            total_failures
-        );
-        println!(
-            "  Execution time       = {:.2?}",
-            elapsed
-        );
+        println!("  Mean max |noise|     = {:.2}", mean_max_noise);
+        println!("  Worst max |noise|    = {}", worst_max_noise);
+        println!("  Mean avg |noise|     = {:.2}", mean_avg_noise);
+        println!("  Failures             = {}", total_failures);
+        println!("  Execution time       = {:.2?}", elapsed);
     }
 
     println!("\n==============================================================");
     println!("             BASE PARAMETER STUDY FINISHED");
     println!("==============================================================");
 }
-
-
 
 #[test]
 fn test_operation_benchmark() {
@@ -1387,10 +947,7 @@ fn test_operation_benchmark() {
 
     let n = 256;
 
-    let message = vec![
-        1, 0, 1, 1,
-        0, 1, 0, 0,
-    ];
+    let message = vec![1, 0, 1, 1, 0, 1, 0, 0];
 
     println!("==============================================================");
     println!("                    PRE OPERATION BENCHMARK");
@@ -1412,24 +969,16 @@ fn test_operation_benchmark() {
     let start = Instant::now();
 
     for _ in 0..repetitions {
-        let keygen = KeyGenResult::keygen(
-            &mut keygen_rng,
-            n,
-        );
+        let keygen = KeyGenResult::keygen(&mut keygen_rng, n);
 
         black_box(keygen);
     }
 
     let keygen_elapsed = start.elapsed();
 
-    let keygen_avg =
-        keygen_elapsed.as_secs_f64() * 1000.0
-        / repetitions as f64;
+    let keygen_avg = keygen_elapsed.as_secs_f64() * 1000.0 / repetitions as f64;
 
-    println!(
-        "Average KeyGen time = {:.4} ms",
-        keygen_avg
-    );
+    println!("Average KeyGen time = {:.4} ms", keygen_avg);
 
     // ------------------------------------------------------------
     // Prepare one key pair for the remaining benchmarks
@@ -1437,15 +986,9 @@ fn test_operation_benchmark() {
 
     let mut rng = thread_rng();
 
-    let alice = KeyGenResult::keygen(
-        &mut rng,
-        n,
-    );
+    let alice = KeyGenResult::keygen(&mut rng, n);
 
-    let bob = KeyGenResult::keygen(
-        &mut rng,
-        n,
-    );
+    let bob = KeyGenResult::keygen(&mut rng, n);
 
     // ------------------------------------------------------------
     // Encryption benchmark
@@ -1458,26 +1001,16 @@ fn test_operation_benchmark() {
     let start = Instant::now();
 
     for _ in 0..repetitions {
-        let ciphertext = encrypt(
-            &mut rng,
-            &alice.pk,
-            &message,
-            n,
-        );
+        let ciphertext = encrypt(&mut rng, &alice.pk, &message, n);
 
         black_box(ciphertext);
     }
 
     let encryption_elapsed = start.elapsed();
 
-    let encryption_avg =
-        encryption_elapsed.as_secs_f64() * 1000.0
-        / repetitions as f64;
+    let encryption_avg = encryption_elapsed.as_secs_f64() * 1000.0 / repetitions as f64;
 
-    println!(
-        "Average Encrypt time = {:.4} ms",
-        encryption_avg
-    );
+    println!("Average Encrypt time = {:.4} ms", encryption_avg);
 
     // ------------------------------------------------------------
     // Benchmark for each decomposition base
@@ -1489,11 +1022,7 @@ fn test_operation_benchmark() {
 
     println!(
         "{:<8} {:>10} {:>18} {:>18} {:>18}",
-        "B",
-        "Entries",
-        "ReKeyGen (ms)",
-        "ReEncrypt (ms)",
-        "Decrypt (ms)"
+        "B", "Entries", "ReKeyGen (ms)", "ReEncrypt (ms)", "Decrypt (ms)"
     );
 
     println!("{}", "-".repeat(78));
@@ -1505,19 +1034,9 @@ fn test_operation_benchmark() {
         // Generate a ciphertext and rekey for this base
         // --------------------------------------------------------
 
-        let ciphertext = encrypt(
-            &mut rng,
-            &alice.pk,
-            &message,
-            n,
-        );
+        let ciphertext = encrypt(&mut rng, &alice.pk, &message, n);
 
-        let rekey = generate_rekey(
-            &mut rng,
-            &alice.sk,
-            &bob.pk,
-            base_bits,
-        );
+        let rekey = generate_rekey(&mut rng, &alice.sk, &bob.pk, base_bits);
 
         let entry_count = rekey.entries.len();
 
@@ -1528,21 +1047,14 @@ fn test_operation_benchmark() {
         let start = Instant::now();
 
         for _ in 0..repetitions {
-            let measured_rekey = generate_rekey(
-                &mut rng,
-                &alice.sk,
-                &bob.pk,
-                base_bits,
-            );
+            let measured_rekey = generate_rekey(&mut rng, &alice.sk, &bob.pk, base_bits);
 
             black_box(measured_rekey);
         }
 
         let rekey_elapsed = start.elapsed();
 
-        let rekey_avg =
-            rekey_elapsed.as_secs_f64() * 1000.0
-            / repetitions as f64;
+        let rekey_avg = rekey_elapsed.as_secs_f64() * 1000.0 / repetitions as f64;
 
         // --------------------------------------------------------
         // ReEncrypt benchmark
@@ -1551,57 +1063,36 @@ fn test_operation_benchmark() {
         let start = Instant::now();
 
         for _ in 0..repetitions {
-            let reencrypted = reencrypt(
-                &ciphertext,
-                &rekey,
-                base_bits,
-            );
+            let reencrypted = reencrypt(&ciphertext, &rekey, base_bits);
 
             black_box(reencrypted);
         }
 
         let reencrypt_elapsed = start.elapsed();
 
-        let reencrypt_avg =
-            reencrypt_elapsed.as_secs_f64() * 1000.0
-            / repetitions as f64;
+        let reencrypt_avg = reencrypt_elapsed.as_secs_f64() * 1000.0 / repetitions as f64;
 
         // --------------------------------------------------------
         // Decryption benchmark
         // --------------------------------------------------------
 
-        let reencrypted = reencrypt(
-            &ciphertext,
-            &rekey,
-            base_bits,
-        );
+        let reencrypted = reencrypt(&ciphertext, &rekey, base_bits);
 
         let start = Instant::now();
 
         for _ in 0..repetitions {
-            let recovered = decrypt(
-                &bob.sk,
-                &reencrypted,
-                n,
-                message.len(),
-            );
+            let recovered = decrypt(&bob.sk, &reencrypted, n, message.len());
 
             black_box(recovered);
         }
 
         let decrypt_elapsed = start.elapsed();
 
-        let decrypt_avg =
-            decrypt_elapsed.as_secs_f64() * 1000.0
-            / repetitions as f64;
+        let decrypt_avg = decrypt_elapsed.as_secs_f64() * 1000.0 / repetitions as f64;
 
         println!(
             "{:<8} {:>10} {:>18.4} {:>18.4} {:>18.4}",
-            base,
-            entry_count,
-            rekey_avg,
-            reencrypt_avg,
-            decrypt_avg
+            base, entry_count, rekey_avg, reencrypt_avg, decrypt_avg
         );
     }
 
@@ -1609,7 +1100,6 @@ fn test_operation_benchmark() {
     println!("               OPERATION BENCHMARK FINISHED");
     println!("==============================================================");
 }
-
 
 //integrazione test PRE con plaintext polinomiale
 #[test]
@@ -1635,34 +1125,16 @@ fn test_reencrypt_polynomial_a_to_b() {
     let bob = KeyGenResult::keygen(&mut rng, n);
 
     // Alice encrypts the polynomial.
-    let ciphertext_a = encrypt_poly(
-        &mut rng,
-        &alice.pk,
-        &message,
-        n,
-    );
+    let ciphertext_a = encrypt_poly(&mut rng, &alice.pk, &message, n);
 
     // Alice -> Bob re-encryption key.
-    let rekey_a_to_b = generate_rekey(
-        &mut rng,
-        &alice.sk,
-        &bob.pk,
-        base_bits,
-    );
+    let rekey_a_to_b = generate_rekey(&mut rng, &alice.sk, &bob.pk, base_bits);
 
     // Proxy re-encrypts.
-    let ciphertext_b = reencrypt(
-        &ciphertext_a,
-        &rekey_a_to_b,
-        base_bits,
-    );
+    let ciphertext_b = reencrypt(&ciphertext_a, &rekey_a_to_b, base_bits);
 
-        // Bob decrypts the transformed ciphertext.
-    let recovered = decrypt_poly(
-        &bob.sk,
-        &ciphertext_b,
-        n,
-    );
+    // Bob decrypts the transformed ciphertext.
+    let recovered = decrypt_poly(&bob.sk, &ciphertext_b, n);
 
     println!("Original polynomial:");
     println!("{:?}", &message.coefficients()[..n]);
@@ -1704,27 +1176,13 @@ fn test_reshuffle_polynomial() {
     let bob = KeyGenResult::keygen(&mut rng, n);
 
     // Alice encrypts.
-    let ciphertext_a = encrypt_poly(
-        &mut rng,
-        &alice.pk,
-        &message,
-        n,
-    );
+    let ciphertext_a = encrypt_poly(&mut rng, &alice.pk, &message, n);
 
     // Alice -> Bob re-key.
-    let rekey_a_to_b = generate_rekey(
-        &mut rng,
-        &alice.sk,
-        &bob.pk,
-        base_bits,
-    );
+    let rekey_a_to_b = generate_rekey(&mut rng, &alice.sk, &bob.pk, base_bits);
 
     // Proxy re-encryption.
-    let ciphertext_b = reencrypt(
-        &ciphertext_a,
-        &rekey_a_to_b,
-        base_bits,
-    );
+    let ciphertext_b = reencrypt(&ciphertext_a, &rekey_a_to_b, base_bits);
 
     // Reshuffling factor:
     //
@@ -1736,24 +1194,13 @@ fn test_reshuffle_polynomial() {
         v
     };
 
-    let factor = PolyRq::from_coeffs(
-        &factor_coeffs,
-        n,
-        q,
-    );
+    let factor = PolyRq::from_coeffs(&factor_coeffs, n, q);
 
     // Apply reshuffling to Bob's ciphertext.
-    let reshuffled_ciphertext = reshuffle(
-        &ciphertext_b,
-        &factor,
-    );
+    let reshuffled_ciphertext = reshuffle(&ciphertext_b, &factor);
 
     // Bob decrypts the reshuffled ciphertext.
-    let recovered = decrypt_poly(
-        &bob.sk,
-        &reshuffled_ciphertext,
-        n,
-    );
+    let recovered = decrypt_poly(&bob.sk, &reshuffled_ciphertext, n);
 
     // Expected plaintext:
     //
@@ -1772,33 +1219,20 @@ fn test_reshuffle_polynomial() {
         expected[i] = (coeffs[i] + coeffs[i - 1]) % 17;
     }
 
-    println!(
-        "Original first 16:   {:?}",
-        &coeffs[..16]
-    );
+    println!("Original first 16:   {:?}", &coeffs[..16]);
 
-    println!(
-        "Expected first 16:   {:?}",
-        &expected[..16]
-    );
+    println!("Expected first 16:   {:?}", &expected[..16]);
 
-    println!(
-        "Recovered first 16: {:?}",
-        &recovered.coefficients()[..16]
-    );
+    println!("Recovered first 16: {:?}", &recovered.coefficients()[..16]);
 
     let mismatches = (0..n)
         .filter(|&i| recovered.coefficients()[i] != expected[i])
         .count();
 
-    println!(
-        "Coefficient mismatches: {}",
-        mismatches
-    );
+    println!("Coefficient mismatches: {}", mismatches);
 
     assert_eq!(
-        mismatches,
-        0,
+        mismatches, 0,
         "reshuffled polynomial does not match expected plaintext"
     );
 }
@@ -1816,45 +1250,26 @@ fn test_lift_prf_output() {
         })
         .collect();
 
-    let prf_output = PolyRq::from_coeffs(
-        &coeffs,
-        n,
-        17,
-    );
+    let prf_output = PolyRq::from_coeffs(&coeffs, n, 17);
 
-    let factor = lift_prf_output_to_q(
-        &prf_output,
-        q,
-    );
+    let factor = lift_prf_output_to_q(&prf_output, q);
 
-    println!(
-        "PRF first 16:   {:?}",
-        &prf_output.coefficients()[..16]
-    );
+    println!("PRF first 16:   {:?}", &prf_output.coefficients()[..16]);
 
-    println!(
-        "Factor first 16: {:?}",
-        &factor.coefficients()[..16]
-    );
+    println!("Factor first 16: {:?}", &factor.coefficients()[..16]);
 
     assert_eq!(factor.modulus(), q);
     assert_eq!(factor.degree_bound(), n);
 
     for i in 0..n {
-        assert_eq!(
-            factor.coefficients()[i],
-            coeffs[i]
-        );
+        assert_eq!(factor.coefficients()[i], coeffs[i]);
     }
 }
 
 #[test]
 fn test_domain_reshuffle_factors() {
     use pq_libpep::core::params::prf_modulus_chain;
-    use pq_libpep::core::rlwr_prf::{
-        RlwrPrf,
-        RlwrPrfBase,
-    };
+    use pq_libpep::core::rlwr_prf::{RlwrPrf, RlwrPrfBase};
     use rand::rngs::StdRng;
     use rand::SeedableRng;
 
@@ -1866,61 +1281,28 @@ fn test_domain_reshuffle_factors() {
     let chain = prf_modulus_chain();
     let highest_modulus = *chain.last().unwrap();
 
-    let base = RlwrPrfBase::sample(
-        &mut rng,
-        n,
-        highest_modulus,
-        256
-    );
+    let base = RlwrPrfBase::sample(&mut rng, n, highest_modulus, 256);
 
-    let prf = RlwrPrf::new(
-        base,
-        chain,
-    );
+    let prf = RlwrPrf::new(base, chain);
 
-    let g_a = derive_reshuffle_factor(
-        &prf,
-        "hospital-A",
-        n,
-        q,
-    );
+    let g_a = derive_reshuffle_factor(&prf, "hospital-A", n, q);
 
-    let g_b = derive_reshuffle_factor(
-        &prf,
-        "hospital-B",
-        n,
-        q,
-    );
+    let g_b = derive_reshuffle_factor(&prf, "hospital-B", n, q);
 
-    println!(
-        "g_A first 16: {:?}",
-        &g_a.coefficients()[..16]
-    );
+    println!("g_A first 16: {:?}", &g_a.coefficients()[..16]);
 
-    println!(
-        "g_B first 16: {:?}",
-        &g_b.coefficients()[..16]
-    );
+    println!("g_B first 16: {:?}", &g_b.coefficients()[..16]);
 
     assert_eq!(g_a.modulus(), q);
     assert_eq!(g_b.modulus(), q);
 
-    assert_ne!(
-        g_a.coefficients(),
-        g_b.coefficients()
-    );
+    assert_ne!(g_a.coefficients(), g_b.coefficients());
 }
 
 #[test]
 fn test_domain_encoding_and_prf() {
-    use pq_libpep::core::params::{
-        prf_modulus_chain,
-        RING_DIMENSION,
-    };
-    use pq_libpep::core::rlwr_prf::{
-        RlwrPrf,
-        RlwrPrfBase,
-    };
+    use pq_libpep::core::params::{prf_modulus_chain, RING_DIMENSION};
+    use pq_libpep::core::rlwr_prf::{RlwrPrf, RlwrPrfBase};
     use rand::rngs::StdRng;
     use rand::SeedableRng;
 
@@ -1931,17 +1313,9 @@ fn test_domain_encoding_and_prf() {
     let chain = prf_modulus_chain();
     let highest_modulus = *chain.last().unwrap();
 
-    let base = RlwrPrfBase::sample(
-        &mut rng,
-        n,
-        highest_modulus,
-        256
-    );
+    let base = RlwrPrfBase::sample(&mut rng, n, highest_modulus, 256);
 
-    let prf = RlwrPrf::new(
-        base,
-        chain,
-    );
+    let prf = RlwrPrf::new(base, chain);
 
     let id_a = string_to_id("hospital-A");
     let id_b = string_to_id("hospital-B");
@@ -1949,11 +1323,7 @@ fn test_domain_encoding_and_prf() {
     println!("ID A: {:02x?}", id_a);
     println!("ID B: {:02x?}", id_b);
 
-    assert_ne!(
-        id_a,
-        id_b,
-        "string_to_id() produced identical IDs"
-    );
+    assert_ne!(id_a, id_b, "string_to_id() produced identical IDs");
 
     let bits_a = bytes_to_bits(&id_a);
     let bits_b = bytes_to_bits(&id_b);
@@ -1965,49 +1335,29 @@ fn test_domain_encoding_and_prf() {
     assert_eq!(bits_b.len(), 256);
 
     assert_ne!(
-        bits_a,
-        bits_b,
+        bits_a, bits_b,
         "bytes_to_bits() produced identical bit strings"
     );
 
-    let poly_a = pseudonymize_32(
-        &prf,
-        &id_a,
-    );
+    let poly_a = pseudonymize_32(&prf, &id_a);
 
-    let poly_b = pseudonymize_32(
-        &prf,
-        &id_b,
-    );
+    let poly_b = pseudonymize_32(&prf, &id_b);
 
-    println!(
-        "PRF A first 16: {:?}",
-        &poly_a.coefficients()[..16]
-    );
+    println!("PRF A first 16: {:?}", &poly_a.coefficients()[..16]);
 
-    println!(
-        "PRF B first 16: {:?}",
-        &poly_b.coefficients()[..16]
-    );
+    println!("PRF B first 16: {:?}", &poly_b.coefficients()[..16]);
 
     assert_ne!(
-        poly_a,
-        poly_b,
+        poly_a, poly_b,
         "PRF produced identical outputs for different IDs"
     );
 }
 
 #[test]
 fn test_prf_input_position_sensitivity() {
-    use pq_libpep::core::params::{
-        prf_modulus_chain,
-        RING_DIMENSION,
-    };
+    use pq_libpep::core::params::{prf_modulus_chain, RING_DIMENSION};
     use pq_libpep::core::pseudonym::pseudonymize_32;
-    use pq_libpep::core::rlwr_prf::{
-        RlwrPrf,
-        RlwrPrfBase,
-    };
+    use pq_libpep::core::rlwr_prf::{RlwrPrf, RlwrPrfBase};
     use rand::rngs::StdRng;
     use rand::SeedableRng;
 
@@ -2018,17 +1368,9 @@ fn test_prf_input_position_sensitivity() {
     let chain = prf_modulus_chain();
     let highest_modulus = *chain.last().unwrap();
 
-    let base = RlwrPrfBase::sample(
-        &mut rng,
-        n,
-        highest_modulus,
-        256
-    );
+    let base = RlwrPrfBase::sample(&mut rng, n, highest_modulus, 256);
 
-    let prf = RlwrPrf::new(
-        base,
-        chain,
-    );
+    let prf = RlwrPrf::new(base, chain);
 
     let id0 = [0u8; 32];
 
@@ -2051,21 +1393,9 @@ fn test_prf_input_position_sensitivity() {
     println!("p2 first 16: {:?}", &p2.coefficients()[..16]);
     println!("p3 first 16: {:?}", &p3.coefficients()[..16]);
 
-    assert_ne!(
-        p0,
-        p1,
-        "PRF ignores changes in byte 0"
-    );
+    assert_ne!(p0, p1, "PRF ignores changes in byte 0");
 
-    assert_ne!(
-        p0,
-        p2,
-        "PRF ignores changes in byte 1"
-    );
+    assert_ne!(p0, p2, "PRF ignores changes in byte 1");
 
-    assert_ne!(
-        p0,
-        p3,
-        "PRF ignores changes in byte 10"
-    );
+    assert_ne!(p0, p3, "PRF ignores changes in byte 10");
 }
