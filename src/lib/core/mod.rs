@@ -1,4 +1,4 @@
-pub mod bpr12_oblivious;
+// Historical encrypted BPR12 experiments are archived under archive/old_implementations/.
 pub mod id_encoding;
 pub mod oblivious_prf;
 pub mod params;

@@ -1,6 +1,10 @@
 [CmdletBinding()]
 param([switch]$SelfTest)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'common/ProjectPaths.ps1')
+$projectPaths = Get-PqPepProjectPaths -ScriptsDirectory $PSScriptRoot
+$projectRoot = $projectPaths.Root
+$resultsDirectory = $projectPaths.Results
 
 # The authoritative log lives outside OneDrive and is never deleted.
 $basePath = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { $env:TEMP }
@@ -9,7 +13,7 @@ New-Item -ItemType Directory -Path $runDirectory -Force | Out-Null
 $logPath = Join-Path $runDirectory 'pep_prf_scaling_32_output.txt'
 $stdoutPath = Join-Path $runDirectory 'stdout.txt'
 $stderrPath = Join-Path $runDirectory 'stderr.txt'
-$projectLog = Join-Path $PSScriptRoot 'pep_prf_scaling_32_output.txt'
+$projectLog = Join-Path $resultsDirectory 'pep_prf_scaling_32_output.txt'
 $utf8 = New-Object System.Text.UTF8Encoding($false)
 $writer = New-Object System.IO.StreamWriter($logPath, $false, $utf8)
 $writer.AutoFlush = $true
@@ -39,17 +43,16 @@ try {
         Write-RunLine '[SELFTEST] Logging check only; no cryptographic benchmark.'
         $childPath = Join-Path $runDirectory 'logging-test.ps1'
         [System.IO.File]::WriteAllText($childPath, "[Console]::Out.WriteLine('SELFTEST_STDOUT'); Start-Sleep -Milliseconds 200; [Console]::Error.WriteLine('SELFTEST_STDERR'); exit 0", $utf8)
-        $executable = (Get-Command powershell.exe -ErrorAction Stop).Source
+        $executable = (Get-Process -Id $PID).Path
         $arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"' + $childPath + '"'))
     } else {
-        if (-not (Test-Path (Join-Path $PSScriptRoot 'Cargo.toml'))) { throw 'Place this script beside Cargo.toml.' }
-        $executable = (Get-Command cargo.exe -ErrorAction Stop).Source
+        $executable = Get-PqPepCargoPath
         $arguments = @('test', '--locked', '--release', '--features', 'fast-prf-tfhe-private-input', '--test', 'pep_prf_scaling_32_benchmark', 'prf_output_length_scaling_32', '--', '--exact', '--ignored', '--nocapture', '--test-threads=1')
         Write-RunLine '[BENCHMARK] Paper profile: 32 bytes ONLY; 10 measured samples and one warm-up.'
         Write-RunLine '[BENCHMARK] One setup and fixed input shared across runs. Run without other benchmarks.'
     }
     Write-RunLine ('[COMMAND] ' + $executable + ' ' + ($arguments -join ' '))
-    $process = Start-Process -FilePath $executable -ArgumentList $arguments -WorkingDirectory $PSScriptRoot -NoNewWindow -PassThru -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+    $process = Start-Process -FilePath $executable -ArgumentList $arguments -WorkingDirectory $projectRoot -NoNewWindow -PassThru -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
     $null = $process.Handle
     foreach ($path in @($stdoutPath, $stderrPath)) {
         $stream = [System.IO.File]::Open($path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)

@@ -1,6 +1,13 @@
-﻿# Old implementations
+# Old implementations
 
 Archivio delle implementazioni sperimentali precedenti di PQlibPEP.
+
+Posizione attuale: `archive/old_implementations/` (prima `old implementations/`).
+Sono stati aggiunti `src/lib/core/bpr12_oblivious.rs` e
+`tests/bpr12_oblivious_test.rs`: il modulo non è più dichiarato nel core attivo,
+e il relativo test non è più scoperto da Cargo. Nessun file storico è eliminato.
+È conservata anche la copia di modulo erroneamente collocata in
+`tests/fast_lwr_prf_pep_hybrid_pipeline.rs`; il modulo corrente rimane in `src/`.
 I file qui contenuti non sono moduli compilati da Cargo.
 I percorsi originali sono preservati sotto src/lib/core, tests ed examples.
 
@@ -41,5 +48,7 @@ Backup del mod.rs corrente: src/lib/core/mod.rs.before-cleanup-20261026-193312.t
 - reshuffle.rs
 - rlwe.rs, rlwe_pke.rs, rlwe_pre.rs
 
-Per ripristinare un vecchio modulo, riportare il file sotto src/lib/core
-e reintrodurre la relativa dichiarazione pub mod nel mod.rs.
+Per ripristinare un vecchio modulo, riportare il file sotto `src/lib/core/`
+e reintrodurre la relativa dichiarazione `pub mod` nel `mod.rs`.
+Per BPR12 occorre anche ripristinare il test sotto `tests/` e verificare
+la compatibilità con le API correnti prima di eseguirlo.

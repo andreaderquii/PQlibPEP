@@ -1,4 +1,4 @@
-# Validation of the launch scripts
+﻿# Validation of the launch scripts
 
 Executed with PowerShell 7.4.6 on Linux:
 - Both .ps1 files parsed with zero syntax errors.

@@ -18,4 +18,9 @@ desktop.ini
 *.temp
 *.bak
 *~
-lab/material/
+
+# Generated build / lab data (keep lab configuration and scripts versioned).
+/lab/material/
+/benchmarks/results/tmp/
+/scripts/.validation-tmp/
+# Keep the research archive tracked; it is intentionally outside Cargo targets.

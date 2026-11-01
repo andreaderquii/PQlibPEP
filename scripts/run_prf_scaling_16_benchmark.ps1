@@ -1,15 +1,19 @@
 [CmdletBinding()]
 param([switch]$SelfTest)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'common/ProjectPaths.ps1')
+$projectPaths = Get-PqPepProjectPaths -ScriptsDirectory $PSScriptRoot
+$projectRoot = $projectPaths.Root
+$resultsDirectory = $projectPaths.Results
 
 # The authoritative log lives outside OneDrive and is never deleted.
 $basePath = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { $env:TEMP }
-$runDirectory = Join-Path $basePath ('PQlibPEP\benchmarks\prf-scaling-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
+$runDirectory = Join-Path $basePath ('PQlibPEP\benchmarks\prf-scaling-16-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
 New-Item -ItemType Directory -Path $runDirectory -Force | Out-Null
-$logPath = Join-Path $runDirectory 'pep_prf_scaling_output.txt'
+$logPath = Join-Path $runDirectory 'pep_prf_scaling_16_output.txt'
 $stdoutPath = Join-Path $runDirectory 'stdout.txt'
 $stderrPath = Join-Path $runDirectory 'stderr.txt'
-$projectLog = Join-Path $PSScriptRoot 'pep_prf_scaling_output.txt'
+$projectLog = Join-Path $resultsDirectory 'pep_prf_scaling_16_output.txt'
 $utf8 = New-Object System.Text.UTF8Encoding($false)
 $writer = New-Object System.IO.StreamWriter($logPath, $false, $utf8)
 $writer.AutoFlush = $true
@@ -39,17 +43,16 @@ try {
         Write-RunLine '[SELFTEST] Logging check only; no cryptographic benchmark.'
         $childPath = Join-Path $runDirectory 'logging-test.ps1'
         [System.IO.File]::WriteAllText($childPath, "[Console]::Out.WriteLine('SELFTEST_STDOUT'); Start-Sleep -Milliseconds 200; [Console]::Error.WriteLine('SELFTEST_STDERR'); exit 0", $utf8)
-        $executable = (Get-Command powershell.exe -ErrorAction Stop).Source
+        $executable = (Get-Process -Id $PID).Path
         $arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"' + $childPath + '"'))
     } else {
-        if (-not (Test-Path (Join-Path $PSScriptRoot 'Cargo.toml'))) { throw 'Place this script beside Cargo.toml.' }
-        $executable = (Get-Command cargo.exe -ErrorAction Stop).Source
-        $arguments = @('test', '--locked', '--release', '--features', 'fast-prf-tfhe-private-input', '--test', 'pep_prf_scaling_benchmark', 'prf_output_length_scaling', '--', '--exact', '--ignored', '--nocapture', '--test-threads=1')
-        Write-RunLine '[BENCHMARK] Paper profile: 16/32/64 bytes; 10 measured samples and one warm-up per size.'
-        Write-RunLine '[BENCHMARK] One setup and fixed input shared across cases. Run without other benchmarks.'
+        $executable = Get-PqPepCargoPath
+        $arguments = @('test', '--locked', '--release', '--features', 'fast-prf-tfhe-private-input', '--test', 'pep_prf_scaling_16_benchmark', 'prf_output_length_scaling_16', '--', '--exact', '--ignored', '--nocapture', '--test-threads=1')
+        Write-RunLine '[BENCHMARK] Paper profile: 16 bytes ONLY; 10 measured samples and one warm-up.'
+        Write-RunLine '[BENCHMARK] One setup and fixed input shared across runs. Run without other benchmarks.'
     }
     Write-RunLine ('[COMMAND] ' + $executable + ' ' + ($arguments -join ' '))
-    $process = Start-Process -FilePath $executable -ArgumentList $arguments -WorkingDirectory $PSScriptRoot -NoNewWindow -PassThru -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+    $process = Start-Process -FilePath $executable -ArgumentList $arguments -WorkingDirectory $projectRoot -NoNewWindow -PassThru -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
     $null = $process.Handle
     foreach ($path in @($stdoutPath, $stderrPath)) {
         $stream = [System.IO.File]::Open($path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
@@ -88,10 +91,10 @@ try {
         } else {
             $samples = ([regex]::Matches($contents, '\[SAMPLE\] PRF eval ')).Count
             $statistics = ([regex]::Matches($contents, '\[STATS\] PRF evaluation, ')).Count
-            if ($samples -ne 30 -or $statistics -ne 3 -or $contents -notmatch 'test result: ok\. 1 passed') {
-                throw "Incomplete benchmark output: samples=$samples/30; summaries=$statistics/3. Raw logs retained."
+            if ($samples -ne 10 -or $statistics -ne 1 -or $contents -notmatch 'test result: ok\. 1 passed') {
+                throw "Incomplete benchmark output: samples=$samples/10; summaries=$statistics/1. Raw logs retained."
             }
-            Write-RunLine '[PASS] Complete results: 30 measured samples, 3 summaries, Rust test passed.'
+            Write-RunLine '[PASS] Complete results: 10 measured samples, 1 summary, Rust test passed.'
         }
     }
 } catch {
