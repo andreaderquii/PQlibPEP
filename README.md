@@ -64,11 +64,3 @@ not alter `lab/`, `.git/` or `target/` (except updating textual script reference
 ```powershell
 cargo run --locked --release --features fast-prf-tfhe-private-input --example hybrid_pep_transaction_demo
 ```
-
-This is a local toy-parameter demonstration with exact PID/payload checks and
-centrally generated keys, not a benchmark or a network/deployment test. Cargo
-only builds it when requested (or when checking all targets with its required feature).
-See [reorganisation notes](docs/REORGANIZATION_IT.md) and
-[recorded benchmark evidence](benchmarks/results/README.md).
-
-Validation details: [reorganisation checks](docs/REORGANIZATION_VALIDATION.md).
